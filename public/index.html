@@ -811,6 +811,8 @@
     let state = { tables: {} };
     let saveTimer = null;
     let saving = false;
+    let saveAgain = false;
+    let booted = false;
 
     async function apiGetState() {
       const res = await fetch(API_STATE);
@@ -832,28 +834,68 @@
       // persisted together with tables via saveState()
     }
 
-    function saveState() {
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(async () => {
-        if (saving) return;
-        saving = true;
-        try {
-          const remote = await apiPutState({ guests: allGuests, tables: state.tables });
-          allGuests = remote.guests;
-          // keep local table object references in sync for capacities/guests
-          for (const def of TABLE_DEFS) {
-            const t = remote.tables[def.id];
-            if (!t) continue;
-            state.tables[def.id].capacity = t.capacity;
-            state.tables[def.id].guests = t.guests;
-          }
-        } catch (err) {
-          console.error(err);
-          showToast("Грешка при зачувување на сервер.");
-        } finally {
-          saving = false;
+    function snapshotState() {
+      const tables = {};
+      for (const def of TABLE_DEFS) {
+        const t = state.tables[def.id] || { capacity: DEFAULT_CAP, guests: [] };
+        tables[def.id] = {
+          capacity: t.capacity,
+          guests: (t.guests || []).map((g) => ({ id: g.id, name: g.name })),
+        };
+      }
+      return {
+        guests: allGuests.map((g) => ({ id: g.id, name: g.name })),
+        tables,
+      };
+    }
+
+    function applyRemote(remote) {
+      allGuests = remote.guests || [];
+      for (const def of TABLE_DEFS) {
+        const t = remote.tables?.[def.id];
+        if (!t) continue;
+        if (!state.tables[def.id]) {
+          state.tables[def.id] = { capacity: DEFAULT_CAP, guests: [] };
         }
-      }, 250);
+        let capacity = Number(t.capacity);
+        if (def.capacityFixed != null) capacity = def.capacityFixed;
+        else capacity = Math.min(MAX_CAP, Math.max(MIN_CAP, capacity || DEFAULT_CAP));
+        state.tables[def.id].capacity = capacity;
+        state.tables[def.id].guests = Array.isArray(t.guests)
+          ? t.guests.map(normalizeGuest).filter(Boolean)
+          : [];
+      }
+    }
+
+    async function flushSave() {
+      if (!booted) return;
+      if (saving) {
+        saveAgain = true;
+        return;
+      }
+      saving = true;
+      try {
+        do {
+          saveAgain = false;
+          const payload = snapshotState();
+          const remote = await apiPutState(payload);
+          // Don't clobber newer local edits made while request was in flight
+          if (!saveAgain) applyRemote(remote);
+        } while (saveAgain);
+      } catch (err) {
+        console.error(err);
+        showToast("Грешка при зачувување на сервер.");
+      } finally {
+        saving = false;
+      }
+    }
+
+    function saveState() {
+      if (!booted) return;
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        flushSave();
+      }, 200);
     }
 
     async function bootstrap() {
@@ -879,22 +921,8 @@
           }
         }
 
-        allGuests = remote.guests || [];
-        const base = defaultState();
-        for (const def of TABLE_DEFS) {
-          const t = remote.tables?.[def.id];
-          if (!t) continue;
-          let capacity = Number(t.capacity);
-          if (def.capacityFixed != null) capacity = def.capacityFixed;
-          else capacity = Math.min(MAX_CAP, Math.max(MIN_CAP, capacity || DEFAULT_CAP));
-          base.tables[def.id] = {
-            capacity,
-            guests: Array.isArray(t.guests)
-              ? t.guests.map(normalizeGuest).filter(Boolean)
-              : [],
-          };
-        }
-        state = base;
+        state = defaultState();
+        applyRemote(remote);
       } catch (err) {
         console.error(err);
         state = defaultState();
@@ -902,6 +930,7 @@
         showToast("Не може да се вчита базата. Провери деплој / DATABASE_URL.");
       }
 
+      booted = true;
       renderTables();
     }
 

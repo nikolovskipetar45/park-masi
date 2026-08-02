@@ -1,5 +1,9 @@
 import { loadState, saveState } from "../lib/db.js";
 
+export const config = {
+  maxDuration: 60,
+};
+
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,PUT,OPTIONS");
