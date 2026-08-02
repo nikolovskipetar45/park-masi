@@ -325,9 +325,6 @@
     .seating-overview .guests-cell {
       line-height: 1.45;
     }
-    .seating-overview .owner-cell {
-      text-align: center;
-    }
     .seating-overview .guest-chip {
       display: inline-flex;
       align-items: center;
@@ -346,8 +343,24 @@
     }
     .seating-overview .owner-cell {
       white-space: nowrap;
-      width: 120px;
+      width: 1%;
+      min-width: 150px;
       font-size: 0.8rem;
+      vertical-align: middle;
+    }
+    .seating-overview .owner-cell .owner-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .seating-overview .owner-cell .owner-dot {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      min-width: 14px;
+      min-height: 14px;
+      flex: 0 0 14px;
+      box-sizing: border-box;
     }
     .owner-tag {
       display: inline-block;
@@ -1328,11 +1341,18 @@
         ownerTd.className = "owner-cell";
         const owner = ownerFor(def.id);
         if (owner) {
+          const wrap = document.createElement("span");
+          wrap.className = "owner-wrap";
           const dot = document.createElement("span");
           dot.className = `owner-dot ${owner.id}`;
           dot.title = owner.label;
           dot.setAttribute("aria-label", owner.label);
-          ownerTd.appendChild(dot);
+          const tag = document.createElement("span");
+          tag.className = `owner-tag ${owner.id}`;
+          tag.textContent = owner.label;
+          wrap.appendChild(dot);
+          wrap.appendChild(tag);
+          ownerTd.appendChild(wrap);
         } else {
           ownerTd.textContent = "—";
         }
@@ -1342,13 +1362,7 @@
         const shownGuests = nameQ
           ? t.guests.filter((g) => g.name.toLowerCase().includes(nameQ))
           : t.guests;
-        for (const g of shownGuests) {
-          const chip = document.createElement("span");
-          chip.className = "guest-chip";
-          chip.appendChild(createOwnerDot(g.id));
-          chip.appendChild(document.createTextNode(g.name));
-          guests.appendChild(chip);
-        }
+        guests.textContent = shownGuests.map((g) => g.name).join(", ");
 
         const count = document.createElement("td");
         count.className = "count-cell";
