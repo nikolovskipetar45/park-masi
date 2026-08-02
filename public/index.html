@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="mk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PARK BY RAGUSA GROUP — Маси</title>
+  <style>
+    :root {
+      --wall: #1a1a1a;
+      --floor: #f5f2ea;
+      --table-fill: #fff;
+      --table-stroke: #222;
+      --accent: #2c5f4a;
+      --danger: #b33;
+      --muted: #666;
+      --panel: #fff;
+      --shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #e8e4dc;
+      color: #111;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--wall);
+      color: #fff;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.1rem;
+      letter-spacing: 0.04em;
+    }
+    header .stats {
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+    header button {
+      background: #fff;
+      color: #111;
+      border: none;
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+    header .header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    header button#remainingBtn {
+      background: #fef3c7;
+      font-weight: 600;
+    }
+    header button#allGuestsBtn {
+      background: #e0e7ff;
+      font-weight: 600;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr minmax(280px, 340px);
+      gap: 16px;
+      padding: 16px;
+      max-width: 1700px;
+      margin: 0 auto;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    .hall-wrap {
+      background: var(--floor);
+      border: 10px solid var(--wall);
+      border-radius: 4px;
+      padding: 12px;
+      position: relative;
+      overflow: auto;
+    }
+
+    .hall {
+      position: relative;
+      min-width: 980px;
+      width: 980px;
+      height: 640px;
+      margin: 0 auto;
+    }
+
+    .zone {
+      position: absolute;
+      border: 2px solid var(--wall);
+      background: rgba(255, 255, 255, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      color: #333;
+      pointer-events: none;
+    }
+
+    /* Шанк горе-лево · влез долу-лево · музика десно-центар */
+    .zone.shank {
+      left: 10px;
+      top: 10px;
+      width: 72px;
+      height: 100px;
+    }
+    .zone.vlez {
+      left: 10px;
+      bottom: 10px;
+      width: 72px;
+      height: 80px;
+    }
+    .zone.muzika {
+      right: 10px;
+      top: 50%;
+      width: 56px;
+      height: 220px;
+      transform: translateY(-50%);
+    }
+
+    .table {
+      position: absolute;
+      border: 2px solid var(--table-stroke);
+      background: var(--table-fill);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      transition: box-shadow 0.15s, background 0.15s, border-color 0.15s;
+      padding: 2px;
+      line-height: 1.1;
+    }
+    .table:hover { box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.2); }
+    .table.active {
+      box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.45);
+      outline: 2px solid #111;
+    }
+    /* Групи — боја на маса */
+    .table.owner-toni {
+      border-color: #1d4ed8;
+      background: #dbeafe;
+    }
+    .table.owner-toni.partial { background: #bfdbfe; }
+    .table.owner-toni.full { background: #93c5fd; border-color: #1e3a8a; }
+
+    .table.owner-najdan {
+      border-color: #c2410c;
+      background: #ffedd5;
+    }
+    .table.owner-najdan.partial { background: #fed7aa; }
+    .table.owner-najdan.full { background: #fdba74; border-color: #9a3412; }
+
+    .table.owner-ane {
+      border-color: #15803d;
+      background: #dcfce7;
+    }
+    .table.owner-ane.partial { background: #bbf7d0; }
+    .table.owner-ane.full { background: #86efac; border-color: #14532d; }
+
+    .table.round { border-radius: 50%; width: 54px; height: 54px; }
+    .table.rect {
+      border-radius: 4px;
+      width: 48px;
+      height: 60px;
+    }
+    /* Невестинска — средина лево */
+    .table.head {
+      width: 48px;
+      height: 190px;
+      border-radius: 4px;
+      left: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .table .num { font-weight: 800; font-size: 0.92rem; }
+    .table .count { font-size: 0.62rem; color: var(--muted); margin-top: 2px; }
+    .table.head .num {
+      font-size: 0.65rem;
+      letter-spacing: 0.02em;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      text-align: center;
+    }
+    .table.head .count {
+      writing-mode: horizontal-tb;
+      transform: none;
+    }
+
+    /* 7 колони: лево (кај невестинска) → десно (кај музика) */
+    .k1 { left: 170px; }
+    .k2 { left: 270px; }
+    .k3 { left: 370px; }
+    .k4 { left: 470px; }
+    .k5 { left: 570px; }
+    .k6 { left: 670px; }
+    .k7 { left: 770px; }
+
+    /* ГОРЕ — редови од горе надолу */
+    .tg1 { top: 28px; }
+    .tg2 { top: 108px; }
+    .tg3 { top: 188px; }
+
+    /* ДОЛУ — два реда */
+    .td1 { top: 420px; }
+    .td2 { top: 510px; }
+
+    .legend {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: #333;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+    .legend span::before {
+      content: "";
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid #333;
+      margin-right: 6px;
+      vertical-align: -3px;
+      border-radius: 3px;
+    }
+    .legend .toni::before { background: #dbeafe; border-color: #1d4ed8; }
+    .legend .najdan::before { background: #ffedd5; border-color: #c2410c; }
+    .legend .ane::before { background: #dcfce7; border-color: #15803d; }
+
+    .seating-overview {
+      margin-top: 16px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .seating-overview h3 {
+      margin: 0;
+      padding: 12px 14px;
+      font-size: 0.95rem;
+      border-bottom: 1px solid #eee;
+    }
+    .seating-overview .table-scroll {
+      overflow: auto;
+      max-height: 420px;
+    }
+    .seating-overview table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    .seating-overview th,
+    .seating-overview td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+      vertical-align: top;
+    }
+    .seating-overview th {
+      background: #f7f5f0;
+      position: sticky;
+      top: 0;
+      font-weight: 700;
+      z-index: 1;
+    }
+    .seating-overview tr[data-table-id] {
+      cursor: pointer;
+    }
+    .seating-overview tr[data-table-id]:hover {
+      background: #e8f5ef;
+    }
+    .seating-overview tr.active-row {
+      background: #e8f5ef;
+    }
+    .seating-overview tr.empty-row td {
+      color: var(--muted);
+    }
+    .seating-overview .guests-cell {
+      line-height: 1.45;
+    }
+    .seating-overview .count-cell {
+      white-space: nowrap;
+      width: 64px;
+    }
+    .seating-overview .masa-cell {
+      white-space: nowrap;
+      width: 140px;
+      font-weight: 600;
+    }
+    .seating-overview .owner-cell {
+      white-space: nowrap;
+      width: 120px;
+      font-size: 0.8rem;
+    }
+    .owner-tag {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .owner-tag.toni { background: #dbeafe; color: #1e3a8a; }
+    .owner-tag.najdan { background: #ffedd5; color: #9a3412; }
+    .owner-tag.ane { background: #dcfce7; color: #14532d; }
+
+    .panel {
+      background: var(--panel);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+      position: sticky;
+      top: 12px;
+      max-height: calc(100vh - 80px);
+      overflow: auto;
+    }
+    .panel h2 {
+      margin: 0 0 4px;
+      font-size: 1.15rem;
+    }
+    .panel .hint {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 14px;
+    }
+
+    .capacity-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .capacity-row label { font-size: 0.9rem; }
+    .capacity-row select {
+      padding: 4px 8px;
+      font-size: 0.9rem;
+    }
+
+    .add-guest-btn,
+    .panel .secondary {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .add-guest-btn {
+      width: 100%;
+      margin-bottom: 12px;
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+    .add-guest-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .panel .secondary {
+      background: #eee;
+      color: #222;
+      margin-top: 8px;
+      width: 100%;
+    }
+
+    .guest-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .guest-list li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .guest-list .gname {
+      flex: 1;
+      font-size: 0.95rem;
+    }
+    .guest-list .remove,
+    .manage-list .remove {
+      background: none;
+      border: none;
+      color: var(--danger);
+      cursor: pointer;
+      font-size: 1.15rem;
+      font-weight: 700;
+      line-height: 1;
+      padding: 4px 8px;
+      white-space: nowrap;
+    }
+    .empty-state {
+      color: var(--muted);
+      font-size: 0.9rem;
+      padding: 8px 0;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #222;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 16px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #fff;
+      border-radius: 10px;
+      width: min(440px, 100%);
+      max-height: min(80vh, 640px);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+    }
+    .modal header {
+      background: #fff;
+      color: #111;
+      padding: 14px 16px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .modal header h3 {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+    .modal header .close {
+      background: #eee;
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1.2rem;
+      line-height: 1;
+    }
+    .modal .search-wrap {
+      padding: 12px 16px;
+      border-bottom: 1px solid #eee;
+    }
+    .modal .search-wrap input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+    .modal .modal-meta {
+      padding: 8px 16px 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .modal .picker-list {
+      list-style: none;
+      margin: 0;
+      padding: 8px;
+      overflow: auto;
+      flex: 1;
+    }
+    .modal .picker-list li button {
+      width: 100%;
+      text-align: left;
+      padding: 10px 12px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+    .modal .picker-list li button:hover {
+      background: #e8f5ef;
+    }
+    .modal .picker-empty {
+      padding: 24px 16px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .modal .add-row {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #eee;
+    }
+    .modal .add-row input {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+    .modal .add-row button {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+    .manage-list {
+      list-style: none;
+      margin: 0;
+      padding: 8px;
+      overflow: auto;
+      flex: 1;
+    }
+    .manage-list li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .manage-list li input {
+      flex: 1;
+      padding: 6px 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 0.92rem;
+    }
+    .manage-list .seat-info {
+      font-size: 0.72rem;
+      color: var(--muted);
+      white-space: nowrap;
+      min-width: 70px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PARK BY RAGUSA GROUP</h1>
+    <div class="stats" id="globalStats">0 / 0 гости</div>
+    <div class="header-actions">
+      <button type="button" id="remainingBtn">Преостанати гости (0)</button>
+      <button type="button" id="allGuestsBtn">Сите гости</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div>
+      <div class="hall-wrap">
+        <div class="hall" id="hall">
+          <div class="zone shank">ШАНК</div>
+          <div class="zone vlez">ВЛЕЗ</div>
+          <div class="zone muzika">МУЗИКА</div>
+          <!-- tables injected by JS -->
+        </div>
+      </div>
+      <div class="legend">
+        <span class="toni">Тони и Вале</span>
+        <span class="najdan">Најдан и Снеже</span>
+        <span class="ane">Петар и Ане (останати)</span>
+      </div>
+
+      <div class="seating-overview">
+        <h3>Распоред по маси</h3>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Маса</th>
+                <th>Група</th>
+                <th>Гости</th>
+                <th>Бр.</th>
+              </tr>
+            </thead>
+            <tbody id="seatingTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <aside class="panel" id="panel">
+      <h2 id="panelTitle">Избери маса</h2>
+      <p class="hint" id="panelHint">Кликни на маса на планот за да додаваш / бришеш / менуваш гости.</p>
+
+      <div id="panelBody" hidden>
+        <div class="capacity-row">
+          <label for="capacitySelect">Капацитет:</label>
+          <select id="capacitySelect"></select>
+          <span id="capacityNote" style="font-size:0.8rem;color:var(--muted)"></span>
+        </div>
+
+        <button type="button" class="add-guest-btn" id="addBtn">+ Додај гостин</button>
+        <ul class="guest-list" id="guestList"></ul>
+        <button type="button" class="secondary" id="clearTableBtn">Избриши ги сите од оваа маса</button>
+      </div>
+    </aside>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="modal-backdrop" id="guestModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <header>
+        <h3 id="modalTitle">Избери гостин</h3>
+        <button type="button" class="close" id="modalClose" aria-label="Затвори">&times;</button>
+      </header>
+      <div class="search-wrap">
+        <input type="search" id="guestSearch" placeholder="Пребарај..." autocomplete="off" />
+      </div>
+      <div class="modal-meta" id="modalMeta"></div>
+      <ul class="picker-list" id="pickerList"></ul>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="remainingModal" role="dialog" aria-modal="true" aria-labelledby="remainingTitle">
+    <div class="modal">
+      <header>
+        <h3 id="remainingTitle">Преостанати гости</h3>
+        <button type="button" class="close" id="remainingClose" aria-label="Затвори">&times;</button>
+      </header>
+      <div class="search-wrap">
+        <input type="search" id="remainingSearch" placeholder="Пребарај..." autocomplete="off" />
+      </div>
+      <div class="modal-meta" id="remainingMeta"></div>
+      <ul class="picker-list" id="remainingList"></ul>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="allGuestsModal" role="dialog" aria-modal="true" aria-labelledby="allGuestsTitle">
+    <div class="modal">
+      <header>
+        <h3 id="allGuestsTitle">Сите гости</h3>
+        <button type="button" class="close" id="allGuestsClose" aria-label="Затвори">&times;</button>
+      </header>
+      <form class="add-row" id="allGuestsAddForm">
+        <input type="text" id="allGuestsNewName" placeholder="Нов гостин..." autocomplete="off" />
+        <button type="submit">Додај</button>
+      </form>
+      <div class="search-wrap">
+        <input type="search" id="allGuestsSearch" placeholder="Пребарај..." autocomplete="off" />
+      </div>
+      <div class="modal-meta" id="allGuestsMeta"></div>
+      <ul class="manage-list" id="allGuestsList"></ul>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "park-ragusa-tables-v2";
+    const GUESTS_KEY = "park-ragusa-guests-v1";
+    const API_STATE = "/api/state";
+    const DEFAULT_CAP = 10;
+    const MIN_CAP = 8;
+    const MAX_CAP = 14;
+    const HEAD_ID = "head";
+    const HEAD_CAP = 6;
+
+    const DEFAULT_GUESTS = [];
+
+    function nextGuestId() {
+      let max = 0;
+      for (const g of allGuests) if (g.id > max) max = g.id;
+      return max + 1;
+    }
+
+    let allGuests = [];
+
+    const OWNERS = {
+      toni: {
+        id: "toni",
+        label: "Тони и Вале",
+        className: "owner-toni",
+        tables: ["7", "14", "6", "13", "5", "4", "3", "2", "10"],
+      },
+      najdan: {
+        id: "najdan",
+        label: "Најдан и Снеже",
+        className: "owner-najdan",
+        tables: ["23", "30", "19", "29", "28", "26", "25", "21"],
+      },
+      ane: {
+        id: "ane",
+        label: "Петар и Ане",
+        className: "owner-ane",
+        tables: [], // останати — се пополнува подолу
+      },
+    };
+
+    const ownerByTable = {};
+    for (const id of OWNERS.toni.tables) ownerByTable[id] = OWNERS.toni;
+    for (const id of OWNERS.najdan.tables) ownerByTable[id] = OWNERS.najdan;
+
+    /**
+     * Ориентација: невестинска средина-лево · шанк горе-лево · влез долу-лево · музика десно
+     * Горе / долу: 7 колони (лево→десно), редови горе→долу во секоја колона
+     */
+    const TABLE_DEFS = [
+      { id: HEAD_ID, label: "НЕВЕСТИНСКА МАСА", shape: "head", className: "table head", capacityFixed: HEAD_CAP },
+
+      // ГОРЕ
+      { id: "30", label: "30", shape: "round", className: "table round k1 tg1" },
+      { id: "23", label: "23", shape: "round", className: "table round k1 tg2" },
+
+      { id: "29", label: "29", shape: "rect", className: "table rect k2 tg1" },
+      { id: "19", label: "19", shape: "rect", className: "table rect k2 tg2" },
+
+      { id: "28", label: "28", shape: "round", className: "table round k3 tg1" },
+      { id: "22", label: "22", shape: "round", className: "table round k3 tg2" },
+      { id: "18", label: "18", shape: "round", className: "table round k3 tg3" },
+
+      { id: "27", label: "27", shape: "rect", className: "table rect k4 tg1" },
+      { id: "17", label: "17", shape: "rect", className: "table rect k4 tg2" },
+
+      { id: "26", label: "26", shape: "round", className: "table round k5 tg1" },
+      { id: "21", label: "21", shape: "round", className: "table round k5 tg2" },
+      { id: "16", label: "16", shape: "round", className: "table round k5 tg3" },
+
+      { id: "25", label: "25", shape: "round", className: "table round k6 tg1" },
+      { id: "15", label: "15", shape: "rect", className: "table rect k6 tg2" },
+
+      { id: "24", label: "24", shape: "round", className: "table round k7 tg1" },
+      { id: "20", label: "20", shape: "round", className: "table round k7 tg2" },
+
+      // ДОЛУ
+      { id: "14", label: "14", shape: "round", className: "table round k1 td1" },
+      { id: "7", label: "7", shape: "rect", className: "table rect k1 td2" },
+
+      { id: "13", label: "13", shape: "rect", className: "table rect k2 td1" },
+      { id: "6", label: "6", shape: "round", className: "table round k2 td2" },
+
+      { id: "12", label: "12", shape: "round", className: "table round k3 td1" },
+      { id: "5", label: "5", shape: "rect", className: "table rect k3 td2" },
+
+      { id: "11", label: "11", shape: "rect", className: "table rect k4 td1" },
+      { id: "4", label: "4", shape: "round", className: "table round k4 td2" },
+
+      { id: "10", label: "10", shape: "round", className: "table round k5 td1" },
+      { id: "3", label: "3", shape: "rect", className: "table rect k5 td2" },
+
+      { id: "9", label: "9", shape: "rect", className: "table rect k6 td1" },
+      { id: "2", label: "2", shape: "round", className: "table round k6 td2" },
+
+      { id: "8", label: "8", shape: "round", className: "table round k7 td1" },
+      { id: "1", label: "1", shape: "rect", className: "table rect k7 td2" },
+    ];
+
+    for (const def of TABLE_DEFS) {
+      if (def.id === HEAD_ID) continue;
+      if (!ownerByTable[def.id]) {
+        ownerByTable[def.id] = OWNERS.ane;
+        OWNERS.ane.tables.push(def.id);
+      }
+    }
+
+    function defaultState() {
+      const tables = {};
+      for (const def of TABLE_DEFS) {
+        tables[def.id] = {
+          capacity: def.capacityFixed ?? DEFAULT_CAP,
+          guests: [],
+        };
+      }
+      return { tables };
+    }
+
+    function normalizeGuest(g) {
+      if (g && typeof g === "object" && g.id != null && g.name) {
+        return { id: Number(g.id), name: String(g.name) };
+      }
+      if (typeof g === "string" && g.trim()) {
+        return { id: null, name: g.trim() };
+      }
+      return null;
+    }
+
+    let state = { tables: {} };
+    let saveTimer = null;
+    let saving = false;
+
+    async function apiGetState() {
+      const res = await fetch(API_STATE);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    async function apiPutState(payload) {
+      const res = await fetch(API_STATE, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    function saveGuests() {
+      // persisted together with tables via saveState()
+    }
+
+    function saveState() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(async () => {
+        if (saving) return;
+        saving = true;
+        try {
+          const remote = await apiPutState({ guests: allGuests, tables: state.tables });
+          allGuests = remote.guests;
+          // keep local table object references in sync for capacities/guests
+          for (const def of TABLE_DEFS) {
+            const t = remote.tables[def.id];
+            if (!t) continue;
+            state.tables[def.id].capacity = t.capacity;
+            state.tables[def.id].guests = t.guests;
+          }
+        } catch (err) {
+          console.error(err);
+          showToast("Грешка при зачувување на сервер.");
+        } finally {
+          saving = false;
+        }
+      }, 250);
+    }
+
+    async function bootstrap() {
+      try {
+        let remote = await apiGetState();
+        const hasSeats = Object.values(remote.tables || {}).some((t) => t.guests?.length);
+        if (!hasSeats) {
+          // еднократен импорт од стар localStorage (ако има)
+          try {
+            const localTables = localStorage.getItem(STORAGE_KEY);
+            const localGuests = localStorage.getItem(GUESTS_KEY);
+            if (localTables) {
+              const parsed = JSON.parse(localTables);
+              const guests = localGuests ? JSON.parse(localGuests) : remote.guests;
+              remote = await apiPutState({
+                guests: Array.isArray(guests) ? guests : remote.guests,
+                tables: parsed.tables || parsed,
+              });
+              showToast("Импортирано од локални податоци.");
+            }
+          } catch (e) {
+            console.warn("local import skipped", e);
+          }
+        }
+
+        allGuests = remote.guests || [];
+        const base = defaultState();
+        for (const def of TABLE_DEFS) {
+          const t = remote.tables?.[def.id];
+          if (!t) continue;
+          let capacity = Number(t.capacity);
+          if (def.capacityFixed != null) capacity = def.capacityFixed;
+          else capacity = Math.min(MAX_CAP, Math.max(MIN_CAP, capacity || DEFAULT_CAP));
+          base.tables[def.id] = {
+            capacity,
+            guests: Array.isArray(t.guests)
+              ? t.guests.map(normalizeGuest).filter(Boolean)
+              : [],
+          };
+        }
+        state = base;
+      } catch (err) {
+        console.error(err);
+        state = defaultState();
+        allGuests = [];
+        showToast("Не може да се вчита базата. Провери деплој / DATABASE_URL.");
+      }
+
+      renderTables();
+    }
+
+    let selectedId = null;
+
+
+    const hall = document.getElementById("hall");
+    const panelTitle = document.getElementById("panelTitle");
+    const panelHint = document.getElementById("panelHint");
+    const panelBody = document.getElementById("panelBody");
+    const capacitySelect = document.getElementById("capacitySelect");
+    const capacityNote = document.getElementById("capacityNote");
+    const addBtn = document.getElementById("addBtn");
+    const guestList = document.getElementById("guestList");
+    const clearTableBtn = document.getElementById("clearTableBtn");
+    const globalStats = document.getElementById("globalStats");
+    const seatingTableBody = document.getElementById("seatingTableBody");
+    const toast = document.getElementById("toast");
+    const guestModal = document.getElementById("guestModal");
+    const modalClose = document.getElementById("modalClose");
+    const guestSearch = document.getElementById("guestSearch");
+    const pickerList = document.getElementById("pickerList");
+    const modalMeta = document.getElementById("modalMeta");
+    const tableEls = {};
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add("show");
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => toast.classList.remove("show"), 2200);
+    }
+
+    function defById(id) {
+      return TABLE_DEFS.find((d) => d.id === id);
+    }
+
+    function seatedIds() {
+      const ids = new Set();
+      for (const def of TABLE_DEFS) {
+        for (const g of state.tables[def.id].guests) {
+          if (g.id != null) ids.add(g.id);
+        }
+      }
+      return ids;
+    }
+
+    function availableGuests(query = "") {
+      const taken = seatedIds();
+      const q = query.trim().toLowerCase();
+      return allGuests.filter((g) => {
+        if (taken.has(g.id)) return false;
+        if (!q) return true;
+        return g.name.toLowerCase().includes(q);
+      });
+    }
+
+    function ownerFor(tableId) {
+      return ownerByTable[tableId] || null;
+    }
+
+    function renderTables() {
+      for (const def of TABLE_DEFS) {
+        const el = document.createElement("button");
+        el.type = "button";
+        el.className = def.className;
+        const owner = ownerFor(def.id);
+        if (owner) el.classList.add(owner.className);
+        el.dataset.id = def.id;
+        const ownerLabel = owner ? ` (${owner.label})` : "";
+        el.setAttribute("aria-label", `Маса ${def.label}${ownerLabel}`);
+        el.title = owner ? owner.label : def.label;
+        el.innerHTML = `<span class="num">${def.label}</span><span class="count"></span>`;
+        el.addEventListener("click", () => selectTable(def.id));
+        hall.appendChild(el);
+        tableEls[def.id] = el;
+      }
+      refreshTableBadges();
+    }
+
+    function fillStatus(table) {
+      const n = table.guests.length;
+      const cap = table.capacity;
+      if (n <= 0) return "";
+      if (n >= cap) return "full";
+      return "partial";
+    }
+
+    function tableSortKey(def) {
+      if (def.id === HEAD_ID) return -1;
+      return Number(def.id);
+    }
+
+    function renderSeatingOverview() {
+      const defs = [...TABLE_DEFS]
+        .filter((def) => state.tables[def.id].guests.length > 0)
+        .sort((a, b) => tableSortKey(a) - tableSortKey(b));
+      seatingTableBody.innerHTML = "";
+      if (!defs.length) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 4;
+        td.className = "empty-state";
+        td.textContent = "Нема распоредени гости.";
+        tr.appendChild(td);
+        seatingTableBody.appendChild(tr);
+        return;
+      }
+      for (const def of defs) {
+        const t = state.tables[def.id];
+        const tr = document.createElement("tr");
+        tr.dataset.tableId = def.id;
+        if (selectedId === def.id) tr.classList.add("active-row");
+
+        const masa = document.createElement("td");
+        masa.className = "masa-cell";
+        masa.textContent = def.id === HEAD_ID ? def.label : `Маса ${def.label}`;
+
+        const ownerTd = document.createElement("td");
+        ownerTd.className = "owner-cell";
+        const owner = ownerFor(def.id);
+        if (owner) {
+          const tag = document.createElement("span");
+          tag.className = `owner-tag ${owner.id}`;
+          tag.textContent = owner.label;
+          ownerTd.appendChild(tag);
+        } else {
+          ownerTd.textContent = "—";
+        }
+
+        const guests = document.createElement("td");
+        guests.className = "guests-cell";
+        guests.textContent = t.guests.map((g) => g.name).join(", ");
+
+        const count = document.createElement("td");
+        count.className = "count-cell";
+        count.textContent = `${t.guests.length}/${t.capacity}`;
+
+        tr.appendChild(masa);
+        tr.appendChild(ownerTd);
+        tr.appendChild(guests);
+        tr.appendChild(count);
+        tr.addEventListener("click", () => selectTable(def.id));
+        seatingTableBody.appendChild(tr);
+      }
+    }
+
+    function refreshTableBadges() {
+      let totalGuests = 0;
+      let totalCap = 0;
+      for (const def of TABLE_DEFS) {
+        const t = state.tables[def.id];
+        totalGuests += t.guests.length;
+        totalCap += t.capacity;
+        const el = tableEls[def.id];
+        el.classList.remove("full", "partial", "active");
+        const status = fillStatus(t);
+        if (status) el.classList.add(status);
+        if (selectedId === def.id) el.classList.add("active");
+        el.querySelector(".count").textContent = `${t.guests.length}/${t.capacity}`;
+      }
+      const free = allGuests.length - seatedIds().size;
+      globalStats.textContent = `${totalGuests} / ${totalCap} на маси · ${free} слободни од листа`;
+      remainingBtn.textContent = `Преостанати гости (${free})`;
+      renderSeatingOverview();
+    }
+
+    function selectTable(id) {
+      selectedId = id;
+      const def = defById(id);
+      const t = state.tables[id];
+      const owner = ownerFor(id);
+      panelTitle.textContent = def.id === HEAD_ID ? def.label : `Маса ${def.label}`;
+      panelHint.textContent = owner
+        ? `${owner.label} · Гости: ${t.guests.length} / ${t.capacity}`
+        : `Гости: ${t.guests.length} / ${t.capacity}`;
+      panelBody.hidden = false;
+
+      capacitySelect.innerHTML = "";
+      if (def.capacityFixed != null) {
+        capacitySelect.disabled = true;
+        const opt = document.createElement("option");
+        opt.value = def.capacityFixed;
+        opt.textContent = String(def.capacityFixed);
+        capacitySelect.appendChild(opt);
+        capacityNote.textContent = "(фиксна)";
+      } else {
+        capacitySelect.disabled = false;
+        capacityNote.textContent = `(${MIN_CAP}–${MAX_CAP}, стандард ${DEFAULT_CAP})`;
+        for (let c = MIN_CAP; c <= MAX_CAP; c++) {
+          const opt = document.createElement("option");
+          opt.value = c;
+          opt.textContent = String(c);
+          if (c === t.capacity) opt.selected = true;
+          capacitySelect.appendChild(opt);
+        }
+      }
+
+      renderGuestList();
+      refreshTableBadges();
+    }
+
+    function renderGuestList() {
+      const t = state.tables[selectedId];
+      guestList.innerHTML = "";
+      if (!t.guests.length) {
+        const p = document.createElement("li");
+        p.className = "empty-state";
+        p.textContent = "Нема гости на оваа маса.";
+        guestList.appendChild(p);
+      } else {
+        t.guests.forEach((guest, index) => {
+          const li = document.createElement("li");
+          const name = document.createElement("span");
+          name.className = "gname";
+          name.textContent = guest.name;
+          const rm = document.createElement("button");
+          rm.type = "button";
+          rm.className = "remove";
+          rm.textContent = "×";
+          rm.setAttribute("aria-label", "Избриши");
+          rm.title = "Избриши";
+          rm.addEventListener("click", () => {
+            t.guests.splice(index, 1);
+            saveState();
+            renderGuestList();
+            refreshPanelMeta();
+            refreshTableBadges();
+            if (guestModal.classList.contains("open")) renderPicker();
+          });
+          li.appendChild(name);
+          li.appendChild(rm);
+          guestList.appendChild(li);
+        });
+      }
+      refreshPanelMeta();
+    }
+
+    function refreshPanelMeta() {
+      if (!selectedId) return;
+      const t = state.tables[selectedId];
+      const owner = ownerFor(selectedId);
+      panelHint.textContent = owner
+        ? `${owner.label} · Гости: ${t.guests.length} / ${t.capacity}`
+        : `Гости: ${t.guests.length} / ${t.capacity}`;
+      addBtn.disabled = t.guests.length >= t.capacity;
+    }
+
+    function openModal() {
+      if (!selectedId) return;
+      const t = state.tables[selectedId];
+      if (t.guests.length >= t.capacity) {
+        showToast("Масата е полна. Зголеми капацитет или избриши гостин.");
+        return;
+      }
+      guestSearch.value = "";
+      guestModal.classList.add("open");
+      renderPicker();
+      guestSearch.focus();
+    }
+
+    function closeModal() {
+      guestModal.classList.remove("open");
+    }
+
+    function renderPicker() {
+      const list = availableGuests(guestSearch.value);
+      modalMeta.textContent = `${list.length} достапни`;
+      pickerList.innerHTML = "";
+      if (!list.length) {
+        const empty = document.createElement("div");
+        empty.className = "picker-empty";
+        empty.textContent = guestSearch.value.trim()
+          ? "Нема резултат."
+          : "Сите гости се веќе распоредени.";
+        pickerList.appendChild(empty);
+        return;
+      }
+      for (const g of list) {
+        const li = document.createElement("li");
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = g.name;
+        btn.addEventListener("click", () => addGuestFromList(g));
+        li.appendChild(btn);
+        pickerList.appendChild(li);
+      }
+    }
+
+    function addGuestFromList(guest) {
+      if (!selectedId) return;
+      const t = state.tables[selectedId];
+      if (t.guests.length >= t.capacity) {
+        showToast("Масата е полна.");
+        closeModal();
+        return;
+      }
+      if (seatedIds().has(guest.id)) {
+        showToast("Гостинот е веќе на друга маса.");
+        renderPicker();
+        return;
+      }
+      t.guests.push({ id: guest.id, name: guest.name });
+      saveState();
+      renderGuestList();
+      refreshTableBadges();
+      if (t.guests.length >= t.capacity) {
+        closeModal();
+        showToast("Масата е пополнета.");
+      } else {
+        renderPicker();
+      }
+    }
+
+    capacitySelect.addEventListener("change", () => {
+      if (!selectedId) return;
+      const def = defById(selectedId);
+      if (def.capacityFixed != null) return;
+      const t = state.tables[selectedId];
+      const next = Number(capacitySelect.value);
+      if (t.guests.length > next) {
+        showToast(`Има ${t.guests.length} гости — прво избриши ги вишокот.`);
+        capacitySelect.value = String(t.capacity);
+        return;
+      }
+      t.capacity = next;
+      saveState();
+      refreshPanelMeta();
+      refreshTableBadges();
+    });
+
+    addBtn.addEventListener("click", openModal);
+    modalClose.addEventListener("click", closeModal);
+    guestModal.addEventListener("click", (e) => {
+      if (e.target === guestModal) closeModal();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && guestModal.classList.contains("open")) closeModal();
+    });
+    guestSearch.addEventListener("input", renderPicker);
+
+    clearTableBtn.addEventListener("click", () => {
+      if (!selectedId) return;
+      if (!confirm("Избриши ги сите гости од оваа маса?")) return;
+      state.tables[selectedId].guests = [];
+      saveState();
+      renderGuestList();
+      refreshTableBadges();
+    });
+
+    const remainingBtn = document.getElementById("remainingBtn");
+    const remainingModal = document.getElementById("remainingModal");
+    const remainingClose = document.getElementById("remainingClose");
+    const remainingSearch = document.getElementById("remainingSearch");
+    const remainingMeta = document.getElementById("remainingMeta");
+    const remainingList = document.getElementById("remainingList");
+
+    function renderRemainingList() {
+      const list = availableGuests(remainingSearch.value);
+      remainingMeta.textContent = `${list.length} преостанати`;
+      remainingList.innerHTML = "";
+      if (!list.length) {
+        const empty = document.createElement("div");
+        empty.className = "picker-empty";
+        empty.textContent = remainingSearch.value.trim()
+          ? "Нема резултат."
+          : "Сите гости се распоредени.";
+        remainingList.appendChild(empty);
+        return;
+      }
+      for (const g of list) {
+        const li = document.createElement("li");
+        const row = document.createElement("div");
+        row.style.padding = "10px 12px";
+        row.textContent = g.name;
+        li.appendChild(row);
+        remainingList.appendChild(li);
+      }
+    }
+
+    function openRemainingModal() {
+      remainingSearch.value = "";
+      remainingModal.classList.add("open");
+      renderRemainingList();
+      remainingSearch.focus();
+    }
+
+    function closeRemainingModal() {
+      remainingModal.classList.remove("open");
+    }
+
+    remainingBtn.addEventListener("click", openRemainingModal);
+    remainingClose.addEventListener("click", closeRemainingModal);
+    remainingModal.addEventListener("click", (e) => {
+      if (e.target === remainingModal) closeRemainingModal();
+    });
+    remainingSearch.addEventListener("input", renderRemainingList);
+
+    const allGuestsBtn = document.getElementById("allGuestsBtn");
+    const allGuestsModal = document.getElementById("allGuestsModal");
+    const allGuestsClose = document.getElementById("allGuestsClose");
+    const allGuestsSearch = document.getElementById("allGuestsSearch");
+    const allGuestsMeta = document.getElementById("allGuestsMeta");
+    const allGuestsList = document.getElementById("allGuestsList");
+    const allGuestsAddForm = document.getElementById("allGuestsAddForm");
+    const allGuestsNewName = document.getElementById("allGuestsNewName");
+
+    function findSeatForGuest(guestId) {
+      for (const def of TABLE_DEFS) {
+        const t = state.tables[def.id];
+        if (t.guests.some((g) => g.id === guestId)) {
+          return def.id === HEAD_ID ? def.label : `Маса ${def.label}`;
+        }
+      }
+      return null;
+    }
+
+    function renameGuestEverywhere(guestId, newName) {
+      for (const def of TABLE_DEFS) {
+        for (const g of state.tables[def.id].guests) {
+          if (g.id === guestId) g.name = newName;
+        }
+      }
+    }
+
+    function removeGuestEverywhere(guestId) {
+      for (const def of TABLE_DEFS) {
+        const t = state.tables[def.id];
+        t.guests = t.guests.filter((g) => g.id !== guestId);
+      }
+    }
+
+    function renderAllGuestsList() {
+      const q = allGuestsSearch.value.trim().toLowerCase();
+      const list = allGuests.filter((g) => !q || g.name.toLowerCase().includes(q));
+      allGuestsMeta.textContent = `${list.length} / ${allGuests.length} гости`;
+      allGuestsList.innerHTML = "";
+      if (!list.length) {
+        const empty = document.createElement("div");
+        empty.className = "picker-empty";
+        empty.textContent = q ? "Нема резултат." : "Нема гости. Додај нов.";
+        allGuestsList.appendChild(empty);
+        return;
+      }
+      for (const g of list) {
+        const li = document.createElement("li");
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = g.name;
+        input.setAttribute("aria-label", "Име на гостин");
+        input.addEventListener("change", () => {
+          const name = input.value.trim();
+          if (!name) {
+            input.value = g.name;
+            showToast("Името не може да е празно.");
+            return;
+          }
+          g.name = name;
+          renameGuestEverywhere(g.id, name);
+          saveGuests();
+          saveState();
+          if (selectedId) renderGuestList();
+          refreshTableBadges();
+          if (guestModal.classList.contains("open")) renderPicker();
+          if (remainingModal.classList.contains("open")) renderRemainingList();
+        });
+
+        const seat = document.createElement("span");
+        seat.className = "seat-info";
+        seat.textContent = findSeatForGuest(g.id) || "слободен";
+
+        const rm = document.createElement("button");
+        rm.type = "button";
+        rm.className = "remove";
+        rm.textContent = "×";
+        rm.setAttribute("aria-label", "Избриши");
+        rm.title = "Избриши";
+        rm.addEventListener("click", () => {
+          const seated = findSeatForGuest(g.id);
+          const msg = seated
+            ? `Избриши „${g.name}“? (седи на ${seated})`
+            : `Избриши „${g.name}“?`;
+          if (!confirm(msg)) return;
+          allGuests = allGuests.filter((x) => x.id !== g.id);
+          removeGuestEverywhere(g.id);
+          saveGuests();
+          saveState();
+          if (selectedId) renderGuestList();
+          refreshTableBadges();
+          renderAllGuestsList();
+          if (guestModal.classList.contains("open")) renderPicker();
+          if (remainingModal.classList.contains("open")) renderRemainingList();
+        });
+
+        li.appendChild(input);
+        li.appendChild(seat);
+        li.appendChild(rm);
+        allGuestsList.appendChild(li);
+      }
+    }
+
+    function openAllGuestsModal() {
+      allGuestsSearch.value = "";
+      allGuestsNewName.value = "";
+      allGuestsModal.classList.add("open");
+      renderAllGuestsList();
+      allGuestsNewName.focus();
+    }
+
+    function closeAllGuestsModal() {
+      allGuestsModal.classList.remove("open");
+    }
+
+    allGuestsBtn.addEventListener("click", openAllGuestsModal);
+    allGuestsClose.addEventListener("click", closeAllGuestsModal);
+    allGuestsModal.addEventListener("click", (e) => {
+      if (e.target === allGuestsModal) closeAllGuestsModal();
+    });
+    allGuestsSearch.addEventListener("input", renderAllGuestsList);
+    allGuestsAddForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const name = allGuestsNewName.value.trim();
+      if (!name) return;
+      allGuests.push({ id: nextGuestId(), name });
+      saveGuests();
+      allGuestsNewName.value = "";
+      renderAllGuestsList();
+      refreshTableBadges();
+      if (guestModal.classList.contains("open")) renderPicker();
+      if (remainingModal.classList.contains("open")) renderRemainingList();
+      showToast(`Додаден: ${name}`);
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (allGuestsModal.classList.contains("open")) closeAllGuestsModal();
+      else if (remainingModal.classList.contains("open")) closeRemainingModal();
+    });
+
+    bootstrap();
+
+  </script>
+</body>
+</html>

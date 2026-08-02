@@ -1,0 +1,14 @@
+{
+  "name": "park-masi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PARK BY RAGUSA GROUP — seating plan",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2"
+  }
+}
