@@ -323,14 +323,30 @@
       color: var(--muted);
     }
     .seating-overview .guests-cell {
-      line-height: 1.45;
+      line-height: 1.7;
     }
-    .seating-overview .guest-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      margin: 0 10px 4px 0;
+    .seating-overview .guest-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin: 0 6px 4px 0;
       white-space: nowrap;
+      background: #f3f4f6;
+      color: #374151;
+    }
+    .seating-overview .guest-badge.toni {
+      background: #dbeafe;
+      color: #1e3a8a;
+    }
+    .seating-overview .guest-badge.najdan {
+      background: #ffedd5;
+      color: #9a3412;
+    }
+    .seating-overview .guest-badge.ane {
+      background: #dcfce7;
+      color: #14532d;
     }
     .seating-overview .count-cell {
       white-space: nowrap;
@@ -1424,7 +1440,15 @@
         const shownGuests = nameQ
           ? t.guests.filter((g) => g.name.toLowerCase().includes(nameQ))
           : t.guests;
-        guests.textContent = shownGuests.map((g) => g.name).join(", ");
+        for (const g of shownGuests) {
+          const badge = document.createElement("span");
+          const ownerId = ownerIdForGuest(g.id) || t.owner || defaultOwnerFor(def.id);
+          badge.className = "guest-badge" + (ownerId ? ` ${ownerId}` : "");
+          badge.textContent = g.name;
+          const ownerDef = OWNER_DEFS[ownerId];
+          if (ownerDef) badge.title = ownerDef.label;
+          guests.appendChild(badge);
+        }
 
         const count = document.createElement("td");
         count.className = "count-cell";
