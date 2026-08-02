@@ -325,6 +325,16 @@
     .seating-overview .guests-cell {
       line-height: 1.45;
     }
+    .seating-overview .owner-cell {
+      text-align: center;
+    }
+    .seating-overview .guest-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0 10px 4px 0;
+      white-space: nowrap;
+    }
     .seating-overview .count-cell {
       white-space: nowrap;
       width: 64px;
@@ -1318,20 +1328,27 @@
         ownerTd.className = "owner-cell";
         const owner = ownerFor(def.id);
         if (owner) {
-          const tag = document.createElement("span");
-          tag.className = `owner-tag ${owner.id}`;
-          tag.textContent = owner.label;
-          ownerTd.appendChild(tag);
+          const dot = document.createElement("span");
+          dot.className = `owner-dot ${owner.id}`;
+          dot.title = owner.label;
+          dot.setAttribute("aria-label", owner.label);
+          ownerTd.appendChild(dot);
         } else {
           ownerTd.textContent = "—";
         }
 
         const guests = document.createElement("td");
         guests.className = "guests-cell";
-        const guestNames = nameQ
-          ? t.guests.filter((g) => g.name.toLowerCase().includes(nameQ)).map((g) => g.name)
-          : t.guests.map((g) => g.name);
-        guests.textContent = guestNames.join(", ");
+        const shownGuests = nameQ
+          ? t.guests.filter((g) => g.name.toLowerCase().includes(nameQ))
+          : t.guests;
+        for (const g of shownGuests) {
+          const chip = document.createElement("span");
+          chip.className = "guest-chip";
+          chip.appendChild(createOwnerDot(g.id));
+          chip.appendChild(document.createTextNode(g.name));
+          guests.appendChild(chip);
+        }
 
         const count = document.createElement("td");
         count.className = "count-cell";
