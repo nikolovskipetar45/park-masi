@@ -638,7 +638,7 @@
       <div class="legend">
         <span class="toni">Тони и Вале</span>
         <span class="najdan">Најдан и Снеже</span>
-        <span class="ane">Петар и Ане (останати)</span>
+        <span class="ane">Петар и Ане</span>
       </div>
 
       <div class="seating-overview">
@@ -668,6 +668,10 @@
           <label for="capacitySelect">Капацитет:</label>
           <select id="capacitySelect"></select>
           <span id="capacityNote" style="font-size:0.8rem;color:var(--muted)"></span>
+        </div>
+        <div class="capacity-row">
+          <label for="ownerSelect">Група:</label>
+          <select id="ownerSelect"></select>
         </div>
 
         <button type="button" class="add-guest-btn" id="addBtn">+ Додај гостин</button>
@@ -753,30 +757,18 @@
 
     let allGuests = [];
 
-    const OWNERS = {
-      toni: {
-        id: "toni",
-        label: "Тони и Вале",
-        className: "owner-toni",
-        tables: ["7", "14", "6", "13", "5", "4", "3", "2", "10"],
-      },
-      najdan: {
-        id: "najdan",
-        label: "Најдан и Снеже",
-        className: "owner-najdan",
-        tables: ["23", "30", "19", "29", "28", "26", "25", "21"],
-      },
-      ane: {
-        id: "ane",
-        label: "Петар и Ане",
-        className: "owner-ane",
-        tables: [], // останати — се пополнува подолу
-      },
+    const OWNER_DEFS = {
+      toni: { id: "toni", label: "Тони и Вале", className: "owner-toni" },
+      najdan: { id: "najdan", label: "Најдан и Снеже", className: "owner-najdan" },
+      ane: { id: "ane", label: "Петар и Ане", className: "owner-ane" },
     };
 
-    const ownerByTable = {};
-    for (const id of OWNERS.toni.tables) ownerByTable[id] = OWNERS.toni;
-    for (const id of OWNERS.najdan.tables) ownerByTable[id] = OWNERS.najdan;
+    const DEFAULT_OWNER_TABLES = {
+      toni: ["7", "14", "6", "13", "5", "4", "3", "2", "10"],
+      najdan: ["23", "30", "19", "29", "28", "26", "25", "21"],
+    };
+
+    let ownerByTable = {};
 
     /**
      * Ориентација: невестинска средина-лево · шанк горе-лево · влез долу-лево · музика десно
@@ -832,11 +824,32 @@
       { id: "1", label: "1", shape: "rect", className: "table rect k7 td2" },
     ];
 
-    for (const def of TABLE_DEFS) {
-      if (def.id === HEAD_ID) continue;
-      if (!ownerByTable[def.id]) {
-        ownerByTable[def.id] = OWNERS.ane;
-        OWNERS.ane.tables.push(def.id);
+    function defaultOwnerFor(tableId) {
+      if (DEFAULT_OWNER_TABLES.toni.includes(tableId)) return "toni";
+      if (DEFAULT_OWNER_TABLES.najdan.includes(tableId)) return "najdan";
+      return "ane";
+    }
+
+    function rebuildOwnerMap() {
+      ownerByTable = {};
+      for (const def of TABLE_DEFS) {
+        const ownerId = state.tables?.[def.id]?.owner || defaultOwnerFor(def.id);
+        ownerByTable[def.id] = OWNER_DEFS[ownerId] || OWNER_DEFS.ane;
+      }
+    }
+
+    function refreshTableOwnerClasses() {
+      rebuildOwnerMap();
+      for (const def of TABLE_DEFS) {
+        const el = tableEls[def.id];
+        if (!el) continue;
+        el.classList.remove("owner-toni", "owner-najdan", "owner-ane");
+        const owner = ownerFor(def.id);
+        if (owner) {
+          el.classList.add(owner.className);
+          el.title = owner.label;
+          el.setAttribute("aria-label", `Маса ${def.label} (${owner.label})`);
+        }
       }
     }
 
@@ -845,6 +858,7 @@
       for (const def of TABLE_DEFS) {
         tables[def.id] = {
           capacity: def.capacityFixed ?? DEFAULT_CAP,
+          owner: defaultOwnerFor(def.id),
           guests: [],
         };
       }
@@ -890,9 +904,14 @@
     function snapshotState() {
       const tables = {};
       for (const def of TABLE_DEFS) {
-        const t = state.tables[def.id] || { capacity: DEFAULT_CAP, guests: [] };
+        const t = state.tables[def.id] || {
+          capacity: DEFAULT_CAP,
+          owner: defaultOwnerFor(def.id),
+          guests: [],
+        };
         tables[def.id] = {
           capacity: t.capacity,
+          owner: t.owner || defaultOwnerFor(def.id),
           guests: (t.guests || []).map((g) => ({ id: g.id, name: g.name })),
         };
       }
@@ -904,20 +923,34 @@
 
     function applyRemote(remote) {
       allGuests = remote.guests || [];
+      const hasAnyOwner = Object.values(remote.tables || {}).some((t) => t?.owner);
       for (const def of TABLE_DEFS) {
         const t = remote.tables?.[def.id];
-        if (!t) continue;
         if (!state.tables[def.id]) {
-          state.tables[def.id] = { capacity: DEFAULT_CAP, guests: [] };
+          state.tables[def.id] = {
+            capacity: DEFAULT_CAP,
+            owner: defaultOwnerFor(def.id),
+            guests: [],
+          };
+        }
+        if (!t) {
+          if (!state.tables[def.id].owner) {
+            state.tables[def.id].owner = defaultOwnerFor(def.id);
+          }
+          continue;
         }
         let capacity = Number(t.capacity);
         if (def.capacityFixed != null) capacity = def.capacityFixed;
         else capacity = Math.min(MAX_CAP, Math.max(MIN_CAP, capacity || DEFAULT_CAP));
         state.tables[def.id].capacity = capacity;
+        state.tables[def.id].owner = hasAnyOwner
+          ? t.owner || defaultOwnerFor(def.id)
+          : defaultOwnerFor(def.id);
         state.tables[def.id].guests = Array.isArray(t.guests)
           ? t.guests.map(normalizeGuest).filter(Boolean)
           : [];
       }
+      rebuildOwnerMap();
     }
 
     async function flushSave() {
@@ -952,6 +985,7 @@
     }
 
     async function bootstrap() {
+      let shouldPersistOwners = false;
       try {
         let remote = await apiGetState();
         const hasSeats = Object.values(remote.tables || {}).some((t) => t.guests?.length);
@@ -974,17 +1008,20 @@
           }
         }
 
+        shouldPersistOwners = !Object.values(remote.tables || {}).some((t) => t?.owner);
         state = defaultState();
         applyRemote(remote);
       } catch (err) {
         console.error(err);
         state = defaultState();
         allGuests = [];
+        rebuildOwnerMap();
         showToast("Не може да се вчита базата. Провери деплој / DATABASE_URL.");
       }
 
       booted = true;
       renderTables();
+      if (shouldPersistOwners) saveState();
     }
 
     let selectedId = null;
@@ -996,6 +1033,7 @@
     const panelBody = document.getElementById("panelBody");
     const capacitySelect = document.getElementById("capacitySelect");
     const capacityNote = document.getElementById("capacityNote");
+    const ownerSelect = document.getElementById("ownerSelect");
     const addBtn = document.getElementById("addBtn");
     const guestList = document.getElementById("guestList");
     const transferRow = document.getElementById("transferRow");
@@ -1184,6 +1222,15 @@
           if (c === t.capacity) opt.selected = true;
           capacitySelect.appendChild(opt);
         }
+      }
+
+      ownerSelect.innerHTML = "";
+      for (const o of Object.values(OWNER_DEFS)) {
+        const opt = document.createElement("option");
+        opt.value = o.id;
+        opt.textContent = o.label;
+        if ((t.owner || defaultOwnerFor(id)) === o.id) opt.selected = true;
+        ownerSelect.appendChild(opt);
       }
 
       renderGuestList();
@@ -1402,6 +1449,18 @@
       saveState();
       refreshPanelMeta();
       refreshTableBadges();
+    });
+
+    ownerSelect.addEventListener("change", () => {
+      if (!selectedId) return;
+      const next = ownerSelect.value;
+      if (!OWNER_DEFS[next]) return;
+      state.tables[selectedId].owner = next;
+      refreshTableOwnerClasses();
+      saveState();
+      refreshPanelMeta();
+      refreshTableBadges();
+      showToast(`Масата е на ${OWNER_DEFS[next].label}`);
     });
 
     addBtn.addEventListener("click", openModal);
