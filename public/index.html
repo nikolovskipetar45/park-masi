@@ -438,13 +438,76 @@
       align-items: center;
       gap: 10px;
     }
-    .remaining-row {
-      display: flex;
+    .manage-list.cols-2 li,
+    .manage-list.cols-4 li {
+      display: grid;
+      gap: 8px;
       align-items: center;
-      gap: 10px;
-      padding: 8px 12px;
+      padding: 8px;
+    }
+    .manage-list.cols-2 li {
+      grid-template-columns: minmax(0, 1fr) 170px;
+    }
+    .manage-list.cols-4 li {
+      grid-template-columns: minmax(0, 1.4fr) 160px 110px 36px;
+    }
+    .manage-list .col-head {
+      display: grid;
+      gap: 8px;
+      padding: 4px 8px 8px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      border-bottom: 1px solid #eee;
+      position: sticky;
+      top: 0;
+      background: #fff;
+      z-index: 1;
+    }
+    .manage-list.cols-2 .col-head {
+      grid-template-columns: minmax(0, 1fr) 170px;
+    }
+    .manage-list.cols-4 .col-head {
+      grid-template-columns: minmax(0, 1.4fr) 160px 110px 36px;
+    }
+    .manage-list li input[type="text"] {
       width: 100%;
-      box-sizing: border-box;
+      min-width: 0;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 0.92rem;
+      background: #fff;
+      color: #111;
+      font-weight: 400;
+    }
+    .manage-list li select.owner-select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      background: #fff;
+    }
+    .manage-list li select.owner-select.toni {
+      background: #dbeafe;
+      border-color: #93c5fd;
+      color: #1e3a8a;
+      font-weight: 600;
+    }
+    .manage-list li select.owner-select.najdan {
+      background: #ffedd5;
+      border-color: #fdba74;
+      color: #9a3412;
+      font-weight: 600;
+    }
+    .manage-list li select.owner-select.ane {
+      background: #dcfce7;
+      border-color: #86efac;
+      color: #14532d;
+      font-weight: 600;
     }
 
     .panel {
@@ -886,7 +949,7 @@
         </select>
       </div>
       <div class="modal-meta" id="remainingMeta"></div>
-      <ul class="picker-list" id="remainingList"></ul>
+      <ul class="manage-list cols-2" id="remainingList"></ul>
     </div>
   </div>
 
@@ -911,7 +974,7 @@
         </select>
       </div>
       <div class="modal-meta" id="allGuestsMeta"></div>
-      <ul class="manage-list" id="allGuestsList"></ul>
+      <ul class="manage-list cols-4" id="allGuestsList"></ul>
     </div>
   </div>
 
@@ -1854,6 +1917,48 @@
     const remainingMeta = document.getElementById("remainingMeta");
     const remainingList = document.getElementById("remainingList");
 
+    function createOwnerSelect(guestId, { disabled = false } = {}) {
+      const sel = document.createElement("select");
+      sel.className = "owner-select";
+      sel.setAttribute("aria-label", "Група");
+      const current = ownerIdForGuest(guestId) || "";
+      const options = [
+        { value: "", label: "Без група" },
+        ...Object.values(OWNER_DEFS).map((o) => ({ value: o.id, label: o.label })),
+      ];
+      for (const o of options) {
+        const opt = document.createElement("option");
+        opt.value = o.value;
+        opt.textContent = o.label;
+        if (o.value === current) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      if (current) sel.classList.add(current);
+      sel.disabled = disabled;
+      if (!disabled) {
+        sel.addEventListener("change", () => {
+          setGuestOwner(guestId, sel.value || null);
+          saveState();
+          if (remainingModal.classList.contains("open")) renderRemainingList();
+          if (allGuestsModal.classList.contains("open")) renderAllGuestsList();
+          if (guestModal.classList.contains("open")) renderPicker();
+          refreshTableBadges();
+        });
+      }
+      return sel;
+    }
+
+    function appendManageHeader(listEl, labels) {
+      const head = document.createElement("div");
+      head.className = "col-head";
+      for (const label of labels) {
+        const span = document.createElement("span");
+        span.textContent = label;
+        head.appendChild(span);
+      }
+      listEl.appendChild(head);
+    }
+
     function renderRemainingList() {
       const list = availableGuests(remainingSearch.value, remainingOwnerFilter.value);
       remainingMeta.textContent = `${list.length} преостанати`;
@@ -1868,26 +1973,30 @@
         remainingList.appendChild(empty);
         return;
       }
+      appendManageHeader(remainingList, ["Име", "Група"]);
       for (const g of list) {
         const li = document.createElement("li");
-        const row = document.createElement("div");
-        row.className = "remaining-row";
-        const ownerId = ownerIdForGuest(g.id);
-        const badge = document.createElement("span");
-        badge.className = "guest-badge editable" + (ownerId ? ` ${ownerId}` : "");
-        badge.textContent = g.name;
-        badge.title = ownerId
-          ? `${OWNER_DEFS[ownerId].label} (кликни за промена)`
-          : "Кликни за група";
-        badge.addEventListener("click", () => {
-          if (!cycleGuestOwner(g.id)) return;
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = g.name;
+        input.setAttribute("aria-label", "Име на гостин");
+        input.addEventListener("change", () => {
+          const name = input.value.trim();
+          if (!name) {
+            input.value = g.name;
+            showToast("Името не може да е празно.");
+            return;
+          }
+          renameGuestEverywhere(g.id, name);
+          saveGuests();
           saveState();
-          renderRemainingList();
+          if (selectedId) renderGuestList();
+          refreshTableBadges();
           if (allGuestsModal.classList.contains("open")) renderAllGuestsList();
           if (guestModal.classList.contains("open")) renderPicker();
         });
-        row.appendChild(badge);
-        li.appendChild(row);
+        li.appendChild(input);
+        li.appendChild(createOwnerSelect(g.id));
         remainingList.appendChild(li);
       }
     }
@@ -1968,20 +2077,14 @@
         allGuestsList.appendChild(empty);
         return;
       }
+      appendManageHeader(allGuestsList, ["Име", "Група", "Маса", ""]);
       for (const g of list) {
         const li = document.createElement("li");
-        const ownerId = ownerIdForGuest(g.id);
         const seated = !!findTableIdForGuest(g.id);
         const input = document.createElement("input");
         input.type = "text";
         input.value = g.name;
-        input.className = ownerId || "";
         input.setAttribute("aria-label", "Име на гостин");
-        input.title = seated
-          ? OWNER_DEFS[ownerId]?.label || ""
-          : ownerId
-            ? `${OWNER_DEFS[ownerId].label} (двоен клик за промена на група)`
-            : "Двоен клик за група";
         input.addEventListener("change", () => {
           const name = input.value.trim();
           if (!name) {
@@ -1997,15 +2100,6 @@
           if (guestModal.classList.contains("open")) renderPicker();
           if (remainingModal.classList.contains("open")) renderRemainingList();
         });
-        if (!seated) {
-          input.addEventListener("dblclick", () => {
-            if (!cycleGuestOwner(g.id)) return;
-            saveState();
-            renderAllGuestsList();
-            if (remainingModal.classList.contains("open")) renderRemainingList();
-            if (guestModal.classList.contains("open")) renderPicker();
-          });
-        }
 
         const seat = document.createElement("span");
         seat.className = "seat-info";
@@ -2035,6 +2129,7 @@
         });
 
         li.appendChild(input);
+        li.appendChild(createOwnerSelect(g.id, { disabled: seated }));
         li.appendChild(seat);
         li.appendChild(rm);
         allGuestsList.appendChild(li);
