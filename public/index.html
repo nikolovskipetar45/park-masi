@@ -325,28 +325,48 @@
     .seating-overview .guests-cell {
       line-height: 1.7;
     }
-    .seating-overview .guest-badge {
+    .guest-badge {
       display: inline-block;
-      padding: 2px 8px;
+      padding: 6px 12px;
       border-radius: 999px;
-      font-size: 0.82rem;
+      font-size: 0.9rem;
       font-weight: 600;
-      margin: 0 6px 4px 0;
+      margin: 0;
       white-space: nowrap;
       background: #f3f4f6;
       color: #374151;
+      border: 1px solid transparent;
     }
-    .seating-overview .guest-badge.toni {
+    .guest-badge.toni,
+    .manage-list li input.toni {
       background: #dbeafe;
       color: #1e3a8a;
+      border-color: #93c5fd;
     }
-    .seating-overview .guest-badge.najdan {
+    .guest-badge.najdan,
+    .manage-list li input.najdan {
       background: #ffedd5;
       color: #9a3412;
+      border-color: #fdba74;
     }
-    .seating-overview .guest-badge.ane {
+    .guest-badge.ane,
+    .manage-list li input.ane {
       background: #dcfce7;
       color: #14532d;
+      border-color: #86efac;
+    }
+    .seating-overview .guest-badge {
+      padding: 2px 8px;
+      font-size: 0.82rem;
+      margin: 0 6px 4px 0;
+    }
+    .guest-badge.editable {
+      cursor: pointer;
+    }
+    .manage-list li input.toni,
+    .manage-list li input.najdan,
+    .manage-list li input.ane {
+      font-weight: 600;
     }
     .seating-overview .count-cell {
       white-space: nowrap;
@@ -422,14 +442,9 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px 12px;
+      padding: 8px 12px;
       width: 100%;
       box-sizing: border-box;
-    }
-    .remaining-row .gname {
-      flex: 1;
-      min-width: 0;
-      font-size: 0.95rem;
     }
 
     .panel {
@@ -1857,11 +1872,21 @@
         const li = document.createElement("li");
         const row = document.createElement("div");
         row.className = "remaining-row";
-        row.appendChild(createOwnerDot(g.id, { editable: true }));
-        const name = document.createElement("span");
-        name.className = "gname";
-        name.textContent = g.name;
-        row.appendChild(name);
+        const ownerId = ownerIdForGuest(g.id);
+        const badge = document.createElement("span");
+        badge.className = "guest-badge editable" + (ownerId ? ` ${ownerId}` : "");
+        badge.textContent = g.name;
+        badge.title = ownerId
+          ? `${OWNER_DEFS[ownerId].label} (кликни за промена)`
+          : "Кликни за група";
+        badge.addEventListener("click", () => {
+          if (!cycleGuestOwner(g.id)) return;
+          saveState();
+          renderRemainingList();
+          if (allGuestsModal.classList.contains("open")) renderAllGuestsList();
+          if (guestModal.classList.contains("open")) renderPicker();
+        });
+        row.appendChild(badge);
         li.appendChild(row);
         remainingList.appendChild(li);
       }
@@ -1945,10 +1970,18 @@
       }
       for (const g of list) {
         const li = document.createElement("li");
+        const ownerId = ownerIdForGuest(g.id);
+        const seated = !!findTableIdForGuest(g.id);
         const input = document.createElement("input");
         input.type = "text";
         input.value = g.name;
+        input.className = ownerId || "";
         input.setAttribute("aria-label", "Име на гостин");
+        input.title = seated
+          ? OWNER_DEFS[ownerId]?.label || ""
+          : ownerId
+            ? `${OWNER_DEFS[ownerId].label} (двоен клик за промена на група)`
+            : "Двоен клик за група";
         input.addEventListener("change", () => {
           const name = input.value.trim();
           if (!name) {
@@ -1964,6 +1997,15 @@
           if (guestModal.classList.contains("open")) renderPicker();
           if (remainingModal.classList.contains("open")) renderRemainingList();
         });
+        if (!seated) {
+          input.addEventListener("dblclick", () => {
+            if (!cycleGuestOwner(g.id)) return;
+            saveState();
+            renderAllGuestsList();
+            if (remainingModal.classList.contains("open")) renderRemainingList();
+            if (guestModal.classList.contains("open")) renderPicker();
+          });
+        }
 
         const seat = document.createElement("span");
         seat.className = "seat-info";
@@ -1976,9 +2018,9 @@
         rm.setAttribute("aria-label", "Избриши");
         rm.title = "Избриши";
         rm.addEventListener("click", () => {
-          const seated = findSeatForGuest(g.id);
-          const msg = seated
-            ? `Избриши „${g.name}“? (седи на ${seated})`
+          const seatLabel = findSeatForGuest(g.id);
+          const msg = seatLabel
+            ? `Избриши „${g.name}“? (седи на ${seatLabel})`
             : `Избриши „${g.name}“?`;
           if (!confirm(msg)) return;
           allGuests = allGuests.filter((x) => x.id !== g.id);
@@ -1992,7 +2034,6 @@
           if (remainingModal.classList.contains("open")) renderRemainingList();
         });
 
-        li.appendChild(createOwnerDot(g.id, { editable: !findTableIdForGuest(g.id) }));
         li.appendChild(input);
         li.appendChild(seat);
         li.appendChild(rm);
