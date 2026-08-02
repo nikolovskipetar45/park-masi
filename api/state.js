@@ -2,6 +2,7 @@ import { loadState, saveState } from "../lib/db.js";
 
 export const config = {
   maxDuration: 60,
+  regions: ["fra1"],
 };
 
 function cors(res) {
