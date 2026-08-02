@@ -264,6 +264,29 @@
       font-size: 0.95rem;
       border-bottom: 1px solid #eee;
     }
+    .seating-overview .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 14px;
+      border-bottom: 1px solid #eee;
+      background: #faf9f6;
+    }
+    .seating-overview .filters input,
+    .seating-overview .filters select {
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      background: #fff;
+    }
+    .seating-overview .filters input {
+      flex: 1 1 180px;
+      min-width: 160px;
+    }
+    .seating-overview .filters select {
+      flex: 0 1 180px;
+    }
     .seating-overview .table-scroll {
       overflow: auto;
       max-height: 420px;
@@ -690,6 +713,15 @@
 
       <div class="seating-overview">
         <h3>Распоред по маси</h3>
+        <div class="filters">
+          <input type="search" id="overviewNameFilter" placeholder="Пребарај по име..." autocomplete="off" />
+          <select id="overviewOwnerFilter" aria-label="Филтер по група">
+            <option value="">Сите групи</option>
+            <option value="toni">Тони и Вале</option>
+            <option value="najdan">Најдан и Снеже</option>
+            <option value="ane">Петар и Ане</option>
+          </select>
+        </div>
         <div class="table-scroll">
           <table>
             <thead>
@@ -1241,9 +1273,23 @@
       return Number(def.id);
     }
 
+    const overviewNameFilter = document.getElementById("overviewNameFilter");
+    const overviewOwnerFilter = document.getElementById("overviewOwnerFilter");
+
     function renderSeatingOverview() {
-      const defs = [...TABLE_DEFS]
-        .filter((def) => state.tables[def.id].guests.length > 0)
+      const nameQ = overviewNameFilter.value.trim().toLowerCase();
+      const ownerQ = overviewOwnerFilter.value;
+      const occupied = [...TABLE_DEFS].filter(
+        (def) => state.tables[def.id].guests.length > 0
+      );
+      const defs = occupied
+        .filter((def) => {
+          const t = state.tables[def.id];
+          const ownerId = t.owner || defaultOwnerFor(def.id);
+          if (ownerQ && ownerId !== ownerQ) return false;
+          if (!nameQ) return true;
+          return t.guests.some((g) => g.name.toLowerCase().includes(nameQ));
+        })
         .sort((a, b) => tableSortKey(a) - tableSortKey(b));
       seatingTableBody.innerHTML = "";
       if (!defs.length) {
@@ -1251,7 +1297,9 @@
         const td = document.createElement("td");
         td.colSpan = 4;
         td.className = "empty-state";
-        td.textContent = "Нема распоредени гости.";
+        td.textContent = occupied.length
+          ? "Нема резултат за филтерот."
+          : "Нема распоредени гости.";
         tr.appendChild(td);
         seatingTableBody.appendChild(tr);
         return;
@@ -1280,7 +1328,10 @@
 
         const guests = document.createElement("td");
         guests.className = "guests-cell";
-        guests.textContent = t.guests.map((g) => g.name).join(", ");
+        const guestNames = nameQ
+          ? t.guests.filter((g) => g.name.toLowerCase().includes(nameQ)).map((g) => g.name)
+          : t.guests.map((g) => g.name);
+        guests.textContent = guestNames.join(", ");
 
         const count = document.createElement("td");
         count.className = "count-cell";
@@ -1294,6 +1345,9 @@
         seatingTableBody.appendChild(tr);
       }
     }
+
+    overviewNameFilter.addEventListener("input", renderSeatingOverview);
+    overviewOwnerFilter.addEventListener("change", renderSeatingOverview);
 
     function refreshTableBadges() {
       let totalGuests = 0;
