@@ -225,11 +225,11 @@
         meta.className = "meta";
         const nameRow = document.createElement("div");
         nameRow.className = "name-row";
-        nameRow.appendChild(ownerDot(g.owner));
         const name = document.createElement("div");
         name.className = "name";
         name.textContent = g.name;
         nameRow.appendChild(name);
+        nameRow.appendChild(ownerDot(g.owner));
         const table = document.createElement("div");
         table.className = "table";
         table.textContent = tableLabel(g.tableId);

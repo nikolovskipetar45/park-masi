@@ -1510,8 +1510,8 @@
           const tag = document.createElement("span");
           tag.className = `owner-tag ${owner.id}`;
           tag.textContent = owner.label;
-          wrap.appendChild(dot);
           wrap.appendChild(tag);
+          wrap.appendChild(dot);
           ownerTd.appendChild(wrap);
         } else {
           ownerTd.textContent = "—";
@@ -1713,8 +1713,8 @@
             if (remainingModal.classList.contains("open")) renderRemainingList();
           });
           li.appendChild(pick);
-          li.appendChild(createOwnerDot(guest.id));
           li.appendChild(name);
+          li.appendChild(createOwnerDot(guest.id));
           li.appendChild(rm);
           guestList.appendChild(li);
         });
@@ -1810,10 +1810,10 @@
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "picker-guest";
-        btn.appendChild(createOwnerDot(g.id, { editable: true }));
         const label = document.createElement("span");
         label.textContent = g.name;
         btn.appendChild(label);
+        btn.appendChild(createOwnerDot(g.id, { editable: true }));
         btn.addEventListener("click", (e) => {
           if (e.target.closest(".owner-dot")) return;
           addGuestFromList(g);
