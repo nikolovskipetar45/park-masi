@@ -447,6 +447,17 @@
     .guest-list .gname {
       flex: 1;
       font-size: 0.95rem;
+      min-width: 0;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      padding: 4px 6px;
+      background: transparent;
+    }
+    .guest-list .gname:hover,
+    .guest-list .gname:focus {
+      border-color: #ccc;
+      background: #fff;
+      outline: none;
     }
     .guest-list .remove,
     .manage-list .remove {
@@ -1307,9 +1318,26 @@
           pick.setAttribute("aria-label", `Избери ${guest.name}`);
           pick.addEventListener("change", updateTransferUi);
 
-          const name = document.createElement("span");
+          const name = document.createElement("input");
+          name.type = "text";
           name.className = "gname";
-          name.textContent = guest.name;
+          name.value = guest.name;
+          name.setAttribute("aria-label", "Име на гостин");
+          name.addEventListener("change", () => {
+            const next = name.value.trim();
+            if (!next) {
+              name.value = guest.name;
+              showToast("Името не може да е празно.");
+              return;
+            }
+            renameGuestEverywhere(guest.id, next);
+            saveGuests();
+            saveState();
+            refreshTableBadges();
+            if (guestModal.classList.contains("open")) renderPicker();
+            if (allGuestsModal.classList.contains("open")) renderAllGuestsList();
+            if (remainingModal.classList.contains("open")) renderRemainingList();
+          });
           const rm = document.createElement("button");
           rm.type = "button";
           rm.className = "remove";
@@ -1566,6 +1594,9 @@
     }
 
     function renameGuestEverywhere(guestId, newName) {
+      for (const g of allGuests) {
+        if (g.id === guestId) g.name = newName;
+      }
       for (const def of TABLE_DEFS) {
         for (const g of state.tables[def.id].guests) {
           if (g.id === guestId) g.name = newName;
@@ -1605,7 +1636,6 @@
             showToast("Името не може да е празно.");
             return;
           }
-          g.name = name;
           renameGuestEverywhere(g.id, name);
           saveGuests();
           saveState();
