@@ -373,22 +373,28 @@
     .owner-tag.najdan { background: #ffedd5; color: #9a3412; }
     .owner-tag.ane { background: #dcfce7; color: #14532d; }
     .owner-dot {
+      display: inline-block;
       width: 14px;
       height: 14px;
+      min-width: 14px;
+      min-height: 14px;
       border-radius: 3px;
       border: 2px solid #999;
       background: #f3f4f6;
-      flex: 0 0 auto;
+      flex: 0 0 14px;
       padding: 0;
+      margin: 0;
+      box-sizing: border-box;
+      vertical-align: middle;
       cursor: default;
     }
     .owner-dot.toni { background: #dbeafe; border-color: #1d4ed8; }
     .owner-dot.najdan { background: #ffedd5; border-color: #c2410c; }
     .owner-dot.ane { background: #dcfce7; border-color: #15803d; }
-    button.owner-dot {
+    .owner-dot.editable {
       cursor: pointer;
     }
-    button.owner-dot:hover {
+    .owner-dot.editable:hover {
       transform: scale(1.08);
     }
     .picker-list li button.picker-guest {
@@ -401,6 +407,13 @@
       align-items: center;
       gap: 10px;
       padding: 10px 12px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .remaining-row .gname {
+      flex: 1;
+      min-width: 0;
+      font-size: 0.95rem;
     }
 
     .panel {
@@ -637,7 +650,7 @@
       overflow: auto;
       flex: 1;
     }
-    .modal .picker-list li button {
+    .modal .picker-list li button.picker-guest {
       width: 100%;
       text-align: left;
       padding: 10px 12px;
@@ -647,7 +660,7 @@
       cursor: pointer;
       font-size: 0.95rem;
     }
-    .modal .picker-list li button:hover {
+    .modal .picker-list li button.picker-guest:hover {
       background: #e8f5ef;
     }
     .modal .picker-empty {
@@ -1241,16 +1254,20 @@
       const ownerId = ownerIdForGuest(guestId);
       const owner = ownerId ? OWNER_DEFS[ownerId] : null;
       const canEdit = editable && !findTableIdForGuest(guestId);
-      const el = document.createElement(canEdit ? "button" : "span");
-      if (canEdit) el.type = "button";
-      el.className = "owner-dot" + (owner ? ` ${owner.id}` : "");
+      const el = document.createElement("span");
+      el.className =
+        "owner-dot" +
+        (owner ? ` ${owner.id}` : "") +
+        (canEdit ? " editable" : "");
       el.title = owner ? owner.label : "Без група";
       el.setAttribute("aria-label", owner ? `Група: ${owner.label}` : "Без група");
       if (canEdit) {
+        el.setAttribute("role", "button");
+        el.tabIndex = 0;
         el.title = owner
           ? `${owner.label} (кликни за промена)`
           : "Кликни за група";
-        el.addEventListener("click", (e) => {
+        const cycle = (e) => {
           e.preventDefault();
           e.stopPropagation();
           if (!cycleGuestOwner(guestId)) return;
@@ -1259,6 +1276,10 @@
           if (guestModal.classList.contains("open")) renderPicker();
           if (remainingModal.classList.contains("open")) renderRemainingList();
           if (allGuestsModal.classList.contains("open")) renderAllGuestsList();
+        };
+        el.addEventListener("click", cycle);
+        el.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") cycle(e);
         });
       }
       return el;
@@ -1768,6 +1789,7 @@
         row.className = "remaining-row";
         row.appendChild(createOwnerDot(g.id, { editable: true }));
         const name = document.createElement("span");
+        name.className = "gname";
         name.textContent = g.name;
         row.appendChild(name);
         li.appendChild(row);
