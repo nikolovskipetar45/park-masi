@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="mk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Check-ins</title>
+  <style>
+    :root {
+      --wall: #1a1a1a;
+      --accent: #2c5f4a;
+      --danger: #b33;
+      --muted: #666;
+      --ok: #15803d;
+      --pending: #a16207;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #e8e4dc;
+      color: #111;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--wall);
+      color: #fff;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+    header .nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    header a, header .stats {
+      color: #fff;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    header a {
+      background: #fff;
+      color: #111;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    header a.active {
+      background: #fef3c7;
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    .toolbar {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.1);
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .toolbar input[type="search"] {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 1rem;
+      margin-bottom: 10px;
+    }
+    .filters {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .filters button {
+      border: 1px solid #ccc;
+      background: #f7f5f0;
+      padding: 6px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 0.88rem;
+    }
+    .filters button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .stats-row {
+      margin-top: 10px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .list li {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 8px rgba(0,0,0,.08);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .list li.arrived {
+      background: #ecfdf5;
+      border: 1px solid #86efac;
+    }
+    .meta {
+      flex: 1;
+      min-width: 0;
+    }
+    .meta .name {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+    .meta .table {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .toggle {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.88rem;
+      white-space: nowrap;
+    }
+    .toggle.mark-in {
+      background: var(--ok);
+      color: #fff;
+    }
+    .toggle.mark-out {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .empty, .error {
+      text-align: center;
+      color: var(--muted);
+      padding: 32px 12px;
+    }
+    .error { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Check-ins</h1>
+    <div class="nav">
+      <a href="/">Список гости</a>
+      <a class="active" href="/check-ins">Check-ins</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Пребарај гостин..." autocomplete="off" autofocus />
+      <div class="filters">
+        <button type="button" class="active" data-filter="all">Сите</button>
+        <button type="button" data-filter="pending">Недојдени</button>
+        <button type="button" data-filter="arrived">Дојдени</button>
+      </div>
+      <div class="stats-row" id="stats">—</div>
+    </div>
+    <ul class="list" id="list"></ul>
+    <div class="empty" id="empty" hidden>Нема резултати.</div>
+    <div class="error" id="error" hidden></div>
+  </div>
+
+  <script>
+    const searchEl = document.getElementById("search");
+    const listEl = document.getElementById("list");
+    const emptyEl = document.getElementById("empty");
+    const errorEl = document.getElementById("error");
+    const statsEl = document.getElementById("stats");
+    const filterBtns = [...document.querySelectorAll(".filters button")];
+
+    let guests = [];
+    let filter = "all";
+
+    function tableLabel(tableId) {
+      if (!tableId) return "Без маса";
+      if (tableId === "head") return "Невестинска маса";
+      return `Маса ${tableId}`;
+    }
+
+    function filtered() {
+      const q = searchEl.value.trim().toLowerCase();
+      return guests.filter((g) => {
+        if (filter === "arrived" && !g.checkedIn) return false;
+        if (filter === "pending" && g.checkedIn) return false;
+        if (!q) return true;
+        return g.name.toLowerCase().includes(q);
+      });
+    }
+
+    function renderStats() {
+      const total = guests.length;
+      const arrived = guests.filter((g) => g.checkedIn).length;
+      statsEl.textContent = `Дојдени: ${arrived} / ${total} · Недојдени: ${total - arrived}`;
+    }
+
+    function render() {
+      const rows = filtered();
+      listEl.innerHTML = "";
+      emptyEl.hidden = rows.length > 0;
+      for (const g of rows) {
+        const li = document.createElement("li");
+        if (g.checkedIn) li.classList.add("arrived");
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.innerHTML = `<div class="name"></div><div class="table"></div>`;
+        meta.querySelector(".name").textContent = g.name;
+        meta.querySelector(".table").textContent = tableLabel(g.tableId);
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "toggle " + (g.checkedIn ? "mark-out" : "mark-in");
+        btn.textContent = g.checkedIn ? "Означи недојден" : "Дојден";
+        btn.addEventListener("click", () => toggleGuest(g));
+
+        li.appendChild(meta);
+        li.appendChild(btn);
+        listEl.appendChild(li);
+      }
+      renderStats();
+    }
+
+    async function load() {
+      errorEl.hidden = true;
+      try {
+        const res = await fetch("/api/checkins");
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        guests = data.guests || [];
+        render();
+      } catch (err) {
+        console.error(err);
+        errorEl.hidden = false;
+        errorEl.textContent = "Не може да се вчитаат гостите.";
+      }
+    }
+
+    async function toggleGuest(guest) {
+      const next = !guest.checkedIn;
+      try {
+        const res = await fetch("/api/checkins", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: guest.id, checkedIn: next }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        const idx = guests.findIndex((g) => g.id === guest.id);
+        if (idx >= 0) guests[idx] = data.guest;
+        render();
+      } catch (err) {
+        console.error(err);
+        alert("Грешка при зачувување.");
+      }
+    }
+
+    searchEl.addEventListener("input", render);
+    filterBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        filter = btn.dataset.filter;
+        filterBtns.forEach((b) => b.classList.toggle("active", b === btn));
+        render();
+      });
+    });
+
+    load();
+  </script>
+</body>
+</html>

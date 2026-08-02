@@ -1,6 +1,8 @@
 {
   "regions": ["fra1"],
   "rewrites": [
+    { "source": "/check-ins", "destination": "/check-ins/index.html" },
+    { "source": "/check-ins/", "destination": "/check-ins/index.html" },
     { "source": "/", "destination": "/index.html" }
   ]
 }
