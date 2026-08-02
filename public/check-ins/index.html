@@ -21,11 +21,6 @@
       color: #111;
     }
     header {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
       padding: 12px 16px;
       background: var(--wall);
       color: #fff;
@@ -33,26 +28,6 @@
     header h1 {
       margin: 0;
       font-size: 1.1rem;
-    }
-    header .nav {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    header a, header .stats {
-      color: #fff;
-      text-decoration: none;
-      font-size: 0.9rem;
-    }
-    header a {
-      background: #fff;
-      color: #111;
-      padding: 6px 12px;
-      border-radius: 4px;
-      font-weight: 600;
-    }
-    header a.active {
-      background: #fef3c7;
     }
     .wrap {
       max-width: 720px;
@@ -159,10 +134,6 @@
 <body>
   <header>
     <h1>Check-ins</h1>
-    <div class="nav">
-      <a href="/">Список гости</a>
-      <a class="active" href="/check-ins">Check-ins</a>
-    </div>
   </header>
 
   <div class="wrap">
@@ -170,8 +141,8 @@
       <input type="search" id="search" placeholder="Пребарај гостин..." autocomplete="off" autofocus />
       <div class="filters">
         <button type="button" class="active" data-filter="all">Сите</button>
-        <button type="button" data-filter="pending">Недојдени</button>
-        <button type="button" data-filter="arrived">Дојдени</button>
+        <button type="button" data-filter="pending">Отсутни</button>
+        <button type="button" data-filter="arrived">Присутни</button>
       </div>
       <div class="stats-row" id="stats">—</div>
     </div>
@@ -210,7 +181,7 @@
     function renderStats() {
       const total = guests.length;
       const arrived = guests.filter((g) => g.checkedIn).length;
-      statsEl.textContent = `Дојдени: ${arrived} / ${total} · Недојдени: ${total - arrived}`;
+      statsEl.textContent = `Присутни: ${arrived} / ${total} · Отсутни: ${total - arrived}`;
     }
 
     function render() {
@@ -230,7 +201,7 @@
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "toggle " + (g.checkedIn ? "mark-out" : "mark-in");
-        btn.textContent = g.checkedIn ? "Означи недојден" : "Дојден";
+        btn.textContent = g.checkedIn ? "Означи отсутен" : "Присутен";
         btn.addEventListener("click", () => toggleGuest(g));
 
         li.appendChild(meta);
