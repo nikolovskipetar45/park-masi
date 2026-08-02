@@ -1221,11 +1221,6 @@
       if (def.capacityFixed != null) return;
       const t = state.tables[selectedId];
       const next = Number(capacitySelect.value);
-      if (t.guests.length > next) {
-        showToast(`Има ${t.guests.length} гости — прво избриши ги вишокот.`);
-        capacitySelect.value = String(t.capacity);
-        return;
-      }
       t.capacity = next;
       saveState();
       refreshPanelMeta();
