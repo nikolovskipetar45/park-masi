@@ -89,6 +89,22 @@
       align-items: center;
       gap: 12px;
     }
+    .owner-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      border: 2px solid #999;
+      background: #f3f4f6;
+      flex: 0 0 auto;
+    }
+    .owner-dot.toni { background: #dbeafe; border-color: #1d4ed8; }
+    .owner-dot.najdan { background: #ffedd5; border-color: #c2410c; }
+    .owner-dot.ane { background: #dcfce7; border-color: #15803d; }
+    .meta .name-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
     .list li.arrived {
       background: #ecfdf5;
       border: 1px solid #86efac;
@@ -162,10 +178,23 @@
     let guests = [];
     let filter = "all";
 
+    const OWNER_LABELS = {
+      toni: "Тони и Вале",
+      najdan: "Најдан и Снеже",
+      ane: "Петар и Ане",
+    };
+
     function tableLabel(tableId) {
       if (!tableId) return "Без маса";
       if (tableId === "head") return "Невестинска маса";
       return `Маса ${tableId}`;
+    }
+
+    function ownerDot(owner) {
+      const el = document.createElement("span");
+      el.className = "owner-dot" + (owner ? ` ${owner}` : "");
+      el.title = OWNER_LABELS[owner] || "Без група";
+      return el;
     }
 
     function filtered() {
@@ -194,9 +223,18 @@
 
         const meta = document.createElement("div");
         meta.className = "meta";
-        meta.innerHTML = `<div class="name"></div><div class="table"></div>`;
-        meta.querySelector(".name").textContent = g.name;
-        meta.querySelector(".table").textContent = tableLabel(g.tableId);
+        const nameRow = document.createElement("div");
+        nameRow.className = "name-row";
+        nameRow.appendChild(ownerDot(g.owner));
+        const name = document.createElement("div");
+        name.className = "name";
+        name.textContent = g.name;
+        nameRow.appendChild(name);
+        const table = document.createElement("div");
+        table.className = "table";
+        table.textContent = tableLabel(g.tableId);
+        meta.appendChild(nameRow);
+        meta.appendChild(table);
 
         const btn = document.createElement("button");
         btn.type = "button";

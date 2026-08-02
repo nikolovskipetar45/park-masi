@@ -326,6 +326,36 @@
     .owner-tag.toni { background: #dbeafe; color: #1e3a8a; }
     .owner-tag.najdan { background: #ffedd5; color: #9a3412; }
     .owner-tag.ane { background: #dcfce7; color: #14532d; }
+    .owner-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      border: 2px solid #999;
+      background: #f3f4f6;
+      flex: 0 0 auto;
+      padding: 0;
+      cursor: default;
+    }
+    .owner-dot.toni { background: #dbeafe; border-color: #1d4ed8; }
+    .owner-dot.najdan { background: #ffedd5; border-color: #c2410c; }
+    .owner-dot.ane { background: #dcfce7; border-color: #15803d; }
+    button.owner-dot {
+      cursor: pointer;
+    }
+    button.owner-dot:hover {
+      transform: scale(1.08);
+    }
+    .picker-list li button.picker-guest {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .remaining-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+    }
 
     .panel {
       background: var(--panel);
@@ -929,11 +959,19 @@
         tables[def.id] = {
           capacity: t.capacity,
           owner: t.owner || defaultOwnerFor(def.id),
-          guests: (t.guests || []).map((g) => ({ id: g.id, name: g.name })),
+          guests: (t.guests || []).map((g) => ({
+            id: g.id,
+            name: g.name,
+            owner: g.owner || null,
+          })),
         };
       }
       return {
-        guests: allGuests.map((g) => ({ id: g.id, name: g.name })),
+        guests: allGuests.map((g) => ({
+          id: g.id,
+          name: g.name,
+          owner: g.owner || null,
+        })),
         tables,
       };
     }
@@ -1102,6 +1140,73 @@
 
     function ownerFor(tableId) {
       return ownerByTable[tableId] || null;
+    }
+
+    function findTableIdForGuest(guestId) {
+      for (const def of TABLE_DEFS) {
+        if (state.tables[def.id].guests.some((g) => g.id === guestId)) {
+          return def.id;
+        }
+      }
+      return null;
+    }
+
+    function ownerIdForGuest(guestId) {
+      const tableId = findTableIdForGuest(guestId);
+      if (tableId) {
+        return state.tables[tableId].owner || defaultOwnerFor(tableId);
+      }
+      const g = allGuests.find((x) => x.id === guestId);
+      return g?.owner || null;
+    }
+
+    function setGuestOwner(guestId, ownerId) {
+      const next = OWNER_DEFS[ownerId] ? ownerId : null;
+      for (const g of allGuests) {
+        if (g.id === guestId) g.owner = next;
+      }
+      for (const def of TABLE_DEFS) {
+        for (const g of state.tables[def.id].guests) {
+          if (g.id === guestId) g.owner = next;
+        }
+      }
+    }
+
+    function cycleGuestOwner(guestId) {
+      if (findTableIdForGuest(guestId)) return false;
+      const order = ["toni", "najdan", "ane"];
+      const current = ownerIdForGuest(guestId);
+      const idx = order.indexOf(current);
+      const next = order[(idx + 1) % order.length];
+      setGuestOwner(guestId, next);
+      return true;
+    }
+
+    function createOwnerDot(guestId, { editable = false } = {}) {
+      const ownerId = ownerIdForGuest(guestId);
+      const owner = ownerId ? OWNER_DEFS[ownerId] : null;
+      const canEdit = editable && !findTableIdForGuest(guestId);
+      const el = document.createElement(canEdit ? "button" : "span");
+      if (canEdit) el.type = "button";
+      el.className = "owner-dot" + (owner ? ` ${owner.id}` : "");
+      el.title = owner ? owner.label : "Без група";
+      el.setAttribute("aria-label", owner ? `Група: ${owner.label}` : "Без група");
+      if (canEdit) {
+        el.title = owner
+          ? `${owner.label} (кликни за промена)`
+          : "Кликни за група";
+        el.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!cycleGuestOwner(guestId)) return;
+          saveState();
+          if (selectedId) renderGuestList();
+          if (guestModal.classList.contains("open")) renderPicker();
+          if (remainingModal.classList.contains("open")) renderRemainingList();
+          if (allGuestsModal.classList.contains("open")) renderAllGuestsList();
+        });
+      }
+      return el;
     }
 
     function renderTables() {
@@ -1345,14 +1450,17 @@
           rm.setAttribute("aria-label", "Избриши");
           rm.title = "Избриши";
           rm.addEventListener("click", () => {
+            setGuestOwner(guest.id, t.owner || defaultOwnerFor(selectedId));
             t.guests.splice(index, 1);
             saveState();
             renderGuestList();
             refreshPanelMeta();
             refreshTableBadges();
             if (guestModal.classList.contains("open")) renderPicker();
+            if (remainingModal.classList.contains("open")) renderRemainingList();
           });
           li.appendChild(pick);
+          li.appendChild(createOwnerDot(guest.id));
           li.appendChild(name);
           li.appendChild(rm);
           guestList.appendChild(li);
@@ -1378,10 +1486,15 @@
 
       const from = state.tables[selectedId];
       const to = state.tables[targetId];
+      const targetOwner = to.owner || defaultOwnerFor(targetId);
       const moving = [];
       for (const index of indexes) {
         const [guest] = from.guests.splice(index, 1);
-        if (guest) moving.push(guest);
+        if (guest) {
+          guest.owner = targetOwner;
+          setGuestOwner(guest.id, targetOwner);
+          moving.push(guest);
+        }
       }
       moving.reverse();
       to.guests.push(...moving);
@@ -1441,8 +1554,15 @@
         const li = document.createElement("li");
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.textContent = g.name;
-        btn.addEventListener("click", () => addGuestFromList(g));
+        btn.className = "picker-guest";
+        btn.appendChild(createOwnerDot(g.id, { editable: true }));
+        const label = document.createElement("span");
+        label.textContent = g.name;
+        btn.appendChild(label);
+        btn.addEventListener("click", (e) => {
+          if (e.target.closest(".owner-dot")) return;
+          addGuestFromList(g);
+        });
         li.appendChild(btn);
         pickerList.appendChild(li);
       }
@@ -1461,7 +1581,9 @@
         renderPicker();
         return;
       }
-      t.guests.push({ id: guest.id, name: guest.name });
+      const owner = t.owner || defaultOwnerFor(selectedId);
+      setGuestOwner(guest.id, owner);
+      t.guests.push({ id: guest.id, name: guest.name, owner });
       saveState();
       renderGuestList();
       refreshTableBadges();
@@ -1490,10 +1612,14 @@
       const next = ownerSelect.value;
       if (!OWNER_DEFS[next]) return;
       state.tables[selectedId].owner = next;
+      for (const g of state.tables[selectedId].guests) {
+        setGuestOwner(g.id, next);
+      }
       refreshTableOwnerClasses();
       saveState();
       refreshPanelMeta();
       refreshTableBadges();
+      if (selectedId) renderGuestList();
       showToast(`Масата е на ${OWNER_DEFS[next].label}`);
     });
 
@@ -1520,10 +1646,15 @@
     clearTableBtn.addEventListener("click", () => {
       if (!selectedId) return;
       if (!confirm("Избриши ги сите гости од оваа маса?")) return;
+      const owner = state.tables[selectedId].owner || defaultOwnerFor(selectedId);
+      for (const g of state.tables[selectedId].guests) {
+        setGuestOwner(g.id, owner);
+      }
       state.tables[selectedId].guests = [];
       saveState();
       renderGuestList();
       refreshTableBadges();
+      if (remainingModal.classList.contains("open")) renderRemainingList();
     });
 
     const remainingBtn = document.getElementById("remainingBtn");
@@ -1549,8 +1680,11 @@
       for (const g of list) {
         const li = document.createElement("li");
         const row = document.createElement("div");
-        row.style.padding = "10px 12px";
-        row.textContent = g.name;
+        row.className = "remaining-row";
+        row.appendChild(createOwnerDot(g.id, { editable: true }));
+        const name = document.createElement("span");
+        name.textContent = g.name;
+        row.appendChild(name);
         li.appendChild(row);
         remainingList.appendChild(li);
       }
@@ -1672,6 +1806,7 @@
           if (remainingModal.classList.contains("open")) renderRemainingList();
         });
 
+        li.appendChild(createOwnerDot(g.id, { editable: !findTableIdForGuest(g.id) }));
         li.appendChild(input);
         li.appendChild(seat);
         li.appendChild(rm);
@@ -1701,7 +1836,7 @@
       e.preventDefault();
       const name = allGuestsNewName.value.trim();
       if (!name) return;
-      allGuests.push({ id: nextGuestId(), name });
+      allGuests.push({ id: nextGuestId(), name, owner: null });
       saveGuests();
       allGuestsNewName.value = "";
       renderAllGuestsList();

@@ -80,6 +80,19 @@
       border-radius: 8px;
       margin-bottom: 10px;
     }
+    .owner-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      border: 2px solid #999;
+      background: #f3f4f6;
+      flex: 0 0 auto;
+      display: inline-block;
+      vertical-align: -2px;
+    }
+    .owner-dot.toni { background: #dbeafe; border-color: #1d4ed8; }
+    .owner-dot.najdan { background: #ffedd5; border-color: #c2410c; }
+    .owner-dot.ane { background: #dcfce7; border-color: #15803d; }
     .guest-pick label {
       display: flex;
       align-items: center;
@@ -235,12 +248,29 @@
     let entries = [];
     let selected = new Set();
 
+    const OWNER_LABELS = {
+      toni: "Тони и Вале",
+      najdan: "Најдан и Снеже",
+      ane: "Петар и Ане",
+    };
+
     function formatMoney(n) {
       return `${Number(n || 0).toLocaleString("mk-MK")} ден.`;
     }
 
-    function guestNames(guests) {
-      return (guests || []).map((g) => g.name).join(" · ");
+    function ownerDot(owner) {
+      const el = document.createElement("span");
+      el.className = "owner-dot" + (owner ? ` ${owner}` : "");
+      el.title = OWNER_LABELS[owner] || "Без група";
+      return el;
+    }
+
+    function appendGuestNames(container, guests) {
+      (guests || []).forEach((g, i) => {
+        if (i) container.appendChild(document.createTextNode(" · "));
+        container.appendChild(ownerDot(g.owner));
+        container.appendChild(document.createTextNode(" " + g.name));
+      });
     }
 
     function updateSelectedLabel() {
@@ -281,9 +311,10 @@
           else selected.delete(g.id);
           updateSelectedLabel();
         });
+        label.appendChild(cb);
+        label.appendChild(ownerDot(g.owner));
         const span = document.createElement("span");
         span.textContent = g.name;
-        label.appendChild(cb);
         label.appendChild(span);
         guestPickEl.appendChild(label);
       }
@@ -310,7 +341,8 @@
         top.className = "entry-top";
         const names = document.createElement("div");
         names.className = "names";
-        names.textContent = guestNames(entry.guests) || "—";
+        if (entry.guests?.length) appendGuestNames(names, entry.guests);
+        else names.textContent = "—";
         top.appendChild(names);
         if (entry.guests.length > 1) {
           const badge = document.createElement("span");
