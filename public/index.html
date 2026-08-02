@@ -697,6 +697,10 @@
       flex-direction: column;
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
     }
+    .modal.modal-lg {
+      width: min(960px, 100%);
+      max-height: min(92vh, 920px);
+    }
     .modal header {
       background: #fff;
       color: #111;
@@ -954,7 +958,7 @@
   </div>
 
   <div class="modal-backdrop" id="allGuestsModal" role="dialog" aria-modal="true" aria-labelledby="allGuestsTitle">
-    <div class="modal">
+    <div class="modal modal-lg">
       <header>
         <h3 id="allGuestsTitle">Сите гости</h3>
         <button type="button" class="close" id="allGuestsClose" aria-label="Затвори">&times;</button>
