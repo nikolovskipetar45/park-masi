@@ -421,7 +421,18 @@
       padding: 8px 0;
       border-bottom: 1px solid #eee;
     }
-    .guest-list .pick {
+    .select-all-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 6px;
+      font-size: 0.88rem;
+      color: #333;
+      cursor: pointer;
+      user-select: none;
+    }
+    .guest-list .pick,
+    .select-all-row .pick {
       width: 16px;
       height: 16px;
       flex: 0 0 auto;
@@ -660,6 +671,10 @@
         </div>
 
         <button type="button" class="add-guest-btn" id="addBtn">+ Додај гостин</button>
+        <label class="select-all-row" id="selectAllRow" hidden>
+          <input type="checkbox" id="selectAllGuests" class="pick" />
+          <span>Селектирај ги сите</span>
+        </label>
         <ul class="guest-list" id="guestList"></ul>
         <div class="transfer-row" id="transferRow" hidden>
           <select id="transferTarget" aria-label="Целна маса"></select>
@@ -986,6 +1001,8 @@
     const transferRow = document.getElementById("transferRow");
     const transferTarget = document.getElementById("transferTarget");
     const transferBtn = document.getElementById("transferBtn");
+    const selectAllRow = document.getElementById("selectAllRow");
+    const selectAllGuests = document.getElementById("selectAllGuests");
     const clearTableBtn = document.getElementById("clearTableBtn");
     const globalStats = document.getElementById("globalStats");
     const seatingTableBody = document.getElementById("seatingTableBody");
@@ -1203,7 +1220,16 @@
     function updateTransferUi() {
       const hasGuests = selectedId && state.tables[selectedId]?.guests?.length;
       transferRow.hidden = !hasGuests;
+      selectAllRow.hidden = !hasGuests;
+      const picks = [...guestList.querySelectorAll(".pick")];
       const n = selectedGuestIndexes().length;
+      if (selectAllGuests && picks.length) {
+        selectAllGuests.checked = n === picks.length;
+        selectAllGuests.indeterminate = n > 0 && n < picks.length;
+      } else if (selectAllGuests) {
+        selectAllGuests.checked = false;
+        selectAllGuests.indeterminate = false;
+      }
       transferBtn.disabled = !n || !transferTarget.value;
       transferBtn.textContent = n ? `Префрли (${n})` : "Префрли";
     }
@@ -1211,6 +1237,8 @@
     function renderGuestList() {
       const t = state.tables[selectedId];
       guestList.innerHTML = "";
+      selectAllGuests.checked = false;
+      selectAllGuests.indeterminate = false;
       if (!t.guests.length) {
         const p = document.createElement("li");
         p.className = "empty-state";
@@ -1388,6 +1416,13 @@
 
     transferTarget.addEventListener("change", updateTransferUi);
     transferBtn.addEventListener("click", transferSelectedGuests);
+    selectAllGuests.addEventListener("change", () => {
+      const on = selectAllGuests.checked;
+      guestList.querySelectorAll(".pick").forEach((el) => {
+        el.checked = on;
+      });
+      updateTransferUi();
+    });
 
     clearTableBtn.addEventListener("click", () => {
       if (!selectedId) return;
