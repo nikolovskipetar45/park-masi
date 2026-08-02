@@ -380,6 +380,34 @@
       margin-top: 8px;
       width: 100%;
     }
+    .panel .transfer-btn {
+      background: #1d4ed8;
+      color: #fff;
+      margin-top: 0;
+      width: auto;
+      flex: 0 0 auto;
+      padding: 8px 12px;
+    }
+    .panel .transfer-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .transfer-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin: 10px 0 4px;
+      flex-wrap: wrap;
+    }
+    .transfer-row select {
+      flex: 1;
+      min-width: 120px;
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
 
     .guest-list {
       list-style: none;
@@ -392,6 +420,12 @@
       gap: 8px;
       padding: 8px 0;
       border-bottom: 1px solid #eee;
+    }
+    .guest-list .pick {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+      accent-color: #1d4ed8;
     }
     .guest-list .gname {
       flex: 1;
@@ -627,6 +661,10 @@
 
         <button type="button" class="add-guest-btn" id="addBtn">+ Додај гостин</button>
         <ul class="guest-list" id="guestList"></ul>
+        <div class="transfer-row" id="transferRow" hidden>
+          <select id="transferTarget" aria-label="Целна маса"></select>
+          <button type="button" class="secondary transfer-btn" id="transferBtn" disabled>Префрли</button>
+        </div>
         <button type="button" class="secondary" id="clearTableBtn">Избриши ги сите од оваа маса</button>
       </div>
     </aside>
@@ -945,6 +983,9 @@
     const capacityNote = document.getElementById("capacityNote");
     const addBtn = document.getElementById("addBtn");
     const guestList = document.getElementById("guestList");
+    const transferRow = document.getElementById("transferRow");
+    const transferTarget = document.getElementById("transferTarget");
+    const transferBtn = document.getElementById("transferBtn");
     const clearTableBtn = document.getElementById("clearTableBtn");
     const globalStats = document.getElementById("globalStats");
     const seatingTableBody = document.getElementById("seatingTableBody");
@@ -1132,6 +1173,41 @@
       refreshTableBadges();
     }
 
+    function fillTransferTargets() {
+      transferTarget.innerHTML = "";
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Префрли на маса…";
+      transferTarget.appendChild(placeholder);
+
+      const defs = [...TABLE_DEFS]
+        .filter((d) => d.id !== selectedId)
+        .sort((a, b) => tableSortKey(a) - tableSortKey(b));
+
+      for (const def of defs) {
+        const t = state.tables[def.id];
+        const opt = document.createElement("option");
+        opt.value = def.id;
+        const label = def.id === HEAD_ID ? def.label : `Маса ${def.label}`;
+        opt.textContent = `${label} (${t.guests.length}/${t.capacity})`;
+        transferTarget.appendChild(opt);
+      }
+    }
+
+    function selectedGuestIndexes() {
+      return [...guestList.querySelectorAll(".pick:checked")].map((el) =>
+        Number(el.dataset.index)
+      );
+    }
+
+    function updateTransferUi() {
+      const hasGuests = selectedId && state.tables[selectedId]?.guests?.length;
+      transferRow.hidden = !hasGuests;
+      const n = selectedGuestIndexes().length;
+      transferBtn.disabled = !n || !transferTarget.value;
+      transferBtn.textContent = n ? `Префрли (${n})` : "Префрли";
+    }
+
     function renderGuestList() {
       const t = state.tables[selectedId];
       guestList.innerHTML = "";
@@ -1143,6 +1219,13 @@
       } else {
         t.guests.forEach((guest, index) => {
           const li = document.createElement("li");
+          const pick = document.createElement("input");
+          pick.type = "checkbox";
+          pick.className = "pick";
+          pick.dataset.index = String(index);
+          pick.setAttribute("aria-label", `Избери ${guest.name}`);
+          pick.addEventListener("change", updateTransferUi);
+
           const name = document.createElement("span");
           name.className = "gname";
           name.textContent = guest.name;
@@ -1160,12 +1243,48 @@
             refreshTableBadges();
             if (guestModal.classList.contains("open")) renderPicker();
           });
+          li.appendChild(pick);
           li.appendChild(name);
           li.appendChild(rm);
           guestList.appendChild(li);
         });
       }
+      fillTransferTargets();
+      updateTransferUi();
       refreshPanelMeta();
+    }
+
+    function transferSelectedGuests() {
+      if (!selectedId) return;
+      const targetId = transferTarget.value;
+      if (!targetId) {
+        showToast("Избери целна маса.");
+        return;
+      }
+      const indexes = selectedGuestIndexes().sort((a, b) => b - a);
+      if (!indexes.length) {
+        showToast("Избери гости со checkbox.");
+        return;
+      }
+
+      const from = state.tables[selectedId];
+      const to = state.tables[targetId];
+      const moving = [];
+      for (const index of indexes) {
+        const [guest] = from.guests.splice(index, 1);
+        if (guest) moving.push(guest);
+      }
+      moving.reverse();
+      to.guests.push(...moving);
+
+      saveState();
+      renderGuestList();
+      refreshPanelMeta();
+      refreshTableBadges();
+      const targetDef = defById(targetId);
+      const targetLabel =
+        targetDef.id === HEAD_ID ? targetDef.label : `Маса ${targetDef.label}`;
+      showToast(`Префрлени ${moving.length} → ${targetLabel}`);
     }
 
     function refreshPanelMeta() {
@@ -1176,6 +1295,7 @@
         ? `${owner.label} · Гости: ${t.guests.length} / ${t.capacity}`
         : `Гости: ${t.guests.length} / ${t.capacity}`;
       addBtn.disabled = t.guests.length >= t.capacity;
+      updateTransferUi();
     }
 
     function openModal() {
@@ -1265,6 +1385,9 @@
       if (e.key === "Escape" && guestModal.classList.contains("open")) closeModal();
     });
     guestSearch.addEventListener("input", renderPicker);
+
+    transferTarget.addEventListener("change", updateTransferUi);
+    transferBtn.addEventListener("click", transferSelectedGuests);
 
     clearTableBtn.addEventListener("click", () => {
       if (!selectedId) return;
