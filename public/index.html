@@ -237,19 +237,27 @@
       flex-wrap: wrap;
       gap: 14px;
     }
-    .legend span::before {
+    .legend .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend .legend-item::before {
       content: "";
       display: inline-block;
       width: 14px;
       height: 14px;
       border: 2px solid #333;
-      margin-right: 6px;
-      vertical-align: -3px;
       border-radius: 3px;
+      flex: 0 0 14px;
     }
     .legend .toni::before { background: #dbeafe; border-color: #1d4ed8; }
     .legend .najdan::before { background: #ffedd5; border-color: #c2410c; }
     .legend .ane::before { background: #dcfce7; border-color: #15803d; }
+    .legend .legend-count {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
 
     .seating-overview {
       margin-top: 16px;
@@ -851,9 +859,9 @@
         </div>
       </div>
       <div class="legend">
-        <span class="toni">Тони и Вале</span>
-        <span class="najdan">Најдан и Снеже</span>
-        <span class="ane">Петар и Ане</span>
+        <span class="legend-item toni">Тони и Вале <span class="legend-count" id="legendToni">(0/0)</span></span>
+        <span class="legend-item najdan">Најдан и Снеже <span class="legend-count" id="legendNajdan">(0/0)</span></span>
+        <span class="legend-item ane">Петар и Ане <span class="legend-count" id="legendAne">(0/0)</span></span>
       </div>
 
       <div class="seating-overview">
@@ -1548,19 +1556,39 @@
     overviewNameFilter.addEventListener("input", renderSeatingOverview);
     overviewOwnerFilter.addEventListener("change", renderSeatingOverview);
 
+    const legendCounts = {
+      toni: document.getElementById("legendToni"),
+      najdan: document.getElementById("legendNajdan"),
+      ane: document.getElementById("legendAne"),
+    };
+
     function refreshTableBadges() {
       let totalGuests = 0;
       let totalCap = 0;
+      const byOwner = {
+        toni: { guests: 0, seats: 0 },
+        najdan: { guests: 0, seats: 0 },
+        ane: { guests: 0, seats: 0 },
+      };
       for (const def of TABLE_DEFS) {
         const t = state.tables[def.id];
         totalGuests += t.guests.length;
         totalCap += t.capacity;
+        const ownerId = t.owner || defaultOwnerFor(def.id);
+        if (byOwner[ownerId]) {
+          byOwner[ownerId].guests += t.guests.length;
+          byOwner[ownerId].seats += t.capacity;
+        }
         const el = tableEls[def.id];
         el.classList.remove("full", "partial", "active");
         const status = fillStatus(t);
         if (status) el.classList.add(status);
         if (selectedId === def.id) el.classList.add("active");
         el.querySelector(".count").textContent = `${t.guests.length}/${t.capacity}`;
+      }
+      for (const id of Object.keys(legendCounts)) {
+        const s = byOwner[id];
+        legendCounts[id].textContent = `(${s.guests}/${s.seats})`;
       }
       const free = allGuests.length - seatedIds().size;
       globalStats.textContent = `${totalGuests} / ${totalCap} на маси · ${free} слободни од листа`;
