@@ -3,6 +3,8 @@
   "rewrites": [
     { "source": "/check-ins", "destination": "/check-ins/index.html" },
     { "source": "/check-ins/", "destination": "/check-ins/index.html" },
+    { "source": "/giftici", "destination": "/giftici/index.html" },
+    { "source": "/giftici/", "destination": "/giftici/index.html" },
     { "source": "/", "destination": "/index.html" }
   ]
 }

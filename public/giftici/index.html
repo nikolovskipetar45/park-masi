@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="mk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Giftici</title>
+  <style>
+    :root {
+      --wall: #1a1a1a;
+      --accent: #2c5f4a;
+      --danger: #b33;
+      --muted: #666;
+      --ok: #15803d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #e8e4dc;
+      color: #111;
+    }
+    header {
+      padding: 12px 16px;
+      background: var(--wall);
+      color: #fff;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    .panel {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.1);
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .total {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+    }
+    .total .label {
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+    .total .value {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+    }
+    .panel h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+    }
+    .hint {
+      margin: 0 0 10px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    input[type="search"],
+    input[type="number"] {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 1rem;
+      margin-bottom: 10px;
+    }
+    .guest-pick {
+      max-height: 240px;
+      overflow: auto;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .guest-pick label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+    .guest-pick label:last-child { border-bottom: none; }
+    .guest-pick label:hover { background: #f7f5f0; }
+    .guest-pick input { width: auto; margin: 0; }
+    .selected {
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+      min-height: 1.2em;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    button.primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    button.danger {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    button.ghost {
+      background: #f3f4f6;
+      color: #111;
+    }
+    .list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .list li {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 8px rgba(0,0,0,.08);
+      padding: 12px 14px;
+    }
+    .list li.merged {
+      border: 1px solid #86efac;
+      background: #ecfdf5;
+    }
+    .entry-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+    .names {
+      font-weight: 700;
+      font-size: 1rem;
+      line-height: 1.35;
+    }
+    .badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: #d1fae5;
+      color: #065f46;
+      padding: 3px 8px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .entry-edit {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .entry-edit input[type="number"] {
+      width: 140px;
+      margin: 0;
+      padding: 8px 10px;
+    }
+    .empty, .error {
+      text-align: center;
+      color: var(--muted);
+      padding: 24px 12px;
+    }
+    .error { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Giftici</h1>
+  </header>
+
+  <div class="wrap">
+    <div class="panel total">
+      <span class="label">Вкупно</span>
+      <span class="value" id="total">0 ден.</span>
+    </div>
+
+    <div class="panel">
+      <h2>Нов поклон</h2>
+      <p class="hint">Одбери еден гостин, или повеќе за заеднички поклон во пари.</p>
+      <input type="search" id="search" placeholder="Пребарај гостин..." autocomplete="off" autofocus />
+      <div class="guest-pick" id="guestPick"></div>
+      <div class="selected" id="selectedLabel">Нема избрани гости.</div>
+      <input type="number" id="amount" min="0" step="100" placeholder="Износ (ден.)" inputmode="numeric" />
+      <div class="actions">
+        <button type="button" class="primary" id="saveBtn" disabled>Зачувај поклон</button>
+        <button type="button" class="ghost" id="clearBtn">Исчисти избор</button>
+      </div>
+    </div>
+
+    <div class="panel" style="padding:0;background:transparent;box-shadow:none">
+      <h2 style="padding:0 2px 8px">Запишани поклони</h2>
+      <ul class="list" id="list"></ul>
+      <div class="empty" id="empty" hidden>Сè уште нема запишани поклони.</div>
+      <div class="error" id="error" hidden></div>
+    </div>
+  </div>
+
+  <script>
+    const searchEl = document.getElementById("search");
+    const guestPickEl = document.getElementById("guestPick");
+    const selectedLabelEl = document.getElementById("selectedLabel");
+    const amountEl = document.getElementById("amount");
+    const saveBtn = document.getElementById("saveBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const listEl = document.getElementById("list");
+    const emptyEl = document.getElementById("empty");
+    const errorEl = document.getElementById("error");
+    const totalEl = document.getElementById("total");
+
+    let availableGuests = [];
+    let entries = [];
+    let selected = new Set();
+
+    function formatMoney(n) {
+      return `${Number(n || 0).toLocaleString("mk-MK")} ден.`;
+    }
+
+    function guestNames(guests) {
+      return (guests || []).map((g) => g.name).join(" · ");
+    }
+
+    function updateSelectedLabel() {
+      const names = availableGuests
+        .filter((g) => selected.has(g.id))
+        .map((g) => g.name);
+      if (!names.length) {
+        selectedLabelEl.textContent = "Нема избрани гости.";
+      } else if (names.length === 1) {
+        selectedLabelEl.textContent = `Избран: ${names[0]}`;
+      } else {
+        selectedLabelEl.textContent = `Заеднички поклон (${names.length}): ${names.join(" · ")}`;
+      }
+      saveBtn.disabled = names.length === 0;
+    }
+
+    function renderGuestPick() {
+      const q = searchEl.value.trim().toLowerCase();
+      const rows = availableGuests.filter((g) => !q || g.name.toLowerCase().includes(q));
+      guestPickEl.innerHTML = "";
+      if (!rows.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.style.padding = "16px";
+        empty.textContent = availableGuests.length
+          ? "Нема резултати."
+          : "Сите гости веќе имаат запишан поклон.";
+        guestPickEl.appendChild(empty);
+        return;
+      }
+      for (const g of rows) {
+        const label = document.createElement("label");
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = selected.has(g.id);
+        cb.addEventListener("change", () => {
+          if (cb.checked) selected.add(g.id);
+          else selected.delete(g.id);
+          updateSelectedLabel();
+        });
+        const span = document.createElement("span");
+        span.textContent = g.name;
+        label.appendChild(cb);
+        label.appendChild(span);
+        guestPickEl.appendChild(label);
+      }
+    }
+
+    function applyData(data) {
+      entries = data.entries || [];
+      availableGuests = data.availableGuests || [];
+      selected = new Set([...selected].filter((id) => availableGuests.some((g) => g.id === id)));
+      totalEl.textContent = formatMoney(data.total || 0);
+      updateSelectedLabel();
+      renderGuestPick();
+      renderEntries();
+    }
+
+    function renderEntries() {
+      listEl.innerHTML = "";
+      emptyEl.hidden = entries.length > 0;
+      for (const entry of entries) {
+        const li = document.createElement("li");
+        if (entry.guests.length > 1) li.classList.add("merged");
+
+        const top = document.createElement("div");
+        top.className = "entry-top";
+        const names = document.createElement("div");
+        names.className = "names";
+        names.textContent = guestNames(entry.guests) || "—";
+        top.appendChild(names);
+        if (entry.guests.length > 1) {
+          const badge = document.createElement("span");
+          badge.className = "badge";
+          badge.textContent = "Заеднички";
+          top.appendChild(badge);
+        }
+
+        const edit = document.createElement("div");
+        edit.className = "entry-edit";
+        const input = document.createElement("input");
+        input.type = "number";
+        input.min = "0";
+        input.step = "100";
+        input.value = String(entry.amount);
+        input.setAttribute("aria-label", "Износ");
+
+        const save = document.createElement("button");
+        save.type = "button";
+        save.className = "primary";
+        save.textContent = "Зачувај";
+        save.addEventListener("click", () => updateAmount(entry.id, input.value));
+
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "danger";
+        del.textContent = "Избриши";
+        del.addEventListener("click", () => removeEntry(entry.id));
+
+        edit.appendChild(input);
+        edit.appendChild(save);
+        edit.appendChild(del);
+
+        li.appendChild(top);
+        li.appendChild(edit);
+        listEl.appendChild(li);
+      }
+    }
+
+    async function load() {
+      errorEl.hidden = true;
+      try {
+        const res = await fetch("/api/gifts");
+        if (!res.ok) throw new Error(await res.text());
+        applyData(await res.json());
+      } catch (err) {
+        console.error(err);
+        errorEl.hidden = false;
+        errorEl.textContent = "Не може да се вчитаат поклоните.";
+      }
+    }
+
+    async function saveGift() {
+      const guestIds = [...selected];
+      const amount = amountEl.value;
+      if (!guestIds.length) return;
+      try {
+        saveBtn.disabled = true;
+        const res = await fetch("/api/gifts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guestIds, amount: amount === "" ? 0 : amount }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Save failed");
+        selected = new Set();
+        amountEl.value = "";
+        searchEl.value = "";
+        applyData(data);
+      } catch (err) {
+        console.error(err);
+        alert(err.message || "Грешка при зачувување.");
+        updateSelectedLabel();
+      }
+    }
+
+    async function updateAmount(id, amount) {
+      try {
+        const res = await fetch("/api/gifts", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, amount }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Update failed");
+        applyData(data);
+      } catch (err) {
+        console.error(err);
+        alert(err.message || "Грешка при зачувување.");
+      }
+    }
+
+    async function removeEntry(id) {
+      if (!confirm("Да се избрише овој поклон?")) return;
+      try {
+        const res = await fetch("/api/gifts", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Delete failed");
+        applyData(data);
+      } catch (err) {
+        console.error(err);
+        alert(err.message || "Грешка при бришење.");
+      }
+    }
+
+    searchEl.addEventListener("input", renderGuestPick);
+    saveBtn.addEventListener("click", saveGift);
+    clearBtn.addEventListener("click", () => {
+      selected = new Set();
+      updateSelectedLabel();
+      renderGuestPick();
+    });
+    amountEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") saveGift();
+    });
+
+    load();
+  </script>
+</body>
+</html>
