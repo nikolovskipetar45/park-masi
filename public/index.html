@@ -628,15 +628,26 @@
       line-height: 1;
     }
     .modal .search-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
       padding: 12px 16px;
       border-bottom: 1px solid #eee;
     }
-    .modal .search-wrap input {
-      width: 100%;
+    .modal .search-wrap input,
+    .modal .search-wrap select {
       padding: 10px 12px;
       border: 1px solid #ccc;
       border-radius: 6px;
       font-size: 0.95rem;
+      background: #fff;
+    }
+    .modal .search-wrap input {
+      flex: 1 1 180px;
+      min-width: 140px;
+    }
+    .modal .search-wrap select {
+      flex: 0 1 180px;
     }
     .modal .modal-meta {
       padding: 8px 16px 0;
@@ -814,6 +825,13 @@
       </header>
       <div class="search-wrap">
         <input type="search" id="guestSearch" placeholder="Пребарај..." autocomplete="off" />
+        <select id="guestOwnerFilter" aria-label="Филтер по група">
+          <option value="">Сите групи</option>
+          <option value="toni">Тони и Вале</option>
+          <option value="najdan">Најдан и Снеже</option>
+          <option value="ane">Петар и Ане</option>
+          <option value="none">Без група</option>
+        </select>
       </div>
       <div class="modal-meta" id="modalMeta"></div>
       <ul class="picker-list" id="pickerList"></ul>
@@ -828,6 +846,13 @@
       </header>
       <div class="search-wrap">
         <input type="search" id="remainingSearch" placeholder="Пребарај..." autocomplete="off" />
+        <select id="remainingOwnerFilter" aria-label="Филтер по група">
+          <option value="">Сите групи</option>
+          <option value="toni">Тони и Вале</option>
+          <option value="najdan">Најдан и Снеже</option>
+          <option value="ane">Петар и Ане</option>
+          <option value="none">Без група</option>
+        </select>
       </div>
       <div class="modal-meta" id="remainingMeta"></div>
       <ul class="picker-list" id="remainingList"></ul>
@@ -846,6 +871,13 @@
       </form>
       <div class="search-wrap">
         <input type="search" id="allGuestsSearch" placeholder="Пребарај..." autocomplete="off" />
+        <select id="allGuestsOwnerFilter" aria-label="Филтер по група">
+          <option value="">Сите групи</option>
+          <option value="toni">Тони и Вале</option>
+          <option value="najdan">Најдан и Снеже</option>
+          <option value="ane">Петар и Ане</option>
+          <option value="none">Без група</option>
+        </select>
       </div>
       <div class="modal-meta" id="allGuestsMeta"></div>
       <ul class="manage-list" id="allGuestsList"></ul>
@@ -1171,6 +1203,7 @@
     const guestModal = document.getElementById("guestModal");
     const modalClose = document.getElementById("modalClose");
     const guestSearch = document.getElementById("guestSearch");
+    const guestOwnerFilter = document.getElementById("guestOwnerFilter");
     const pickerList = document.getElementById("pickerList");
     const modalMeta = document.getElementById("modalMeta");
     const tableEls = {};
@@ -1196,11 +1229,19 @@
       return ids;
     }
 
-    function availableGuests(query = "") {
+    function matchesOwnerFilter(guestId, ownerFilter) {
+      if (!ownerFilter) return true;
+      const ownerId = ownerIdForGuest(guestId);
+      if (ownerFilter === "none") return !ownerId;
+      return ownerId === ownerFilter;
+    }
+
+    function availableGuests(query = "", ownerFilter = "") {
       const taken = seatedIds();
       const q = query.trim().toLowerCase();
       return allGuests.filter((g) => {
         if (taken.has(g.id)) return false;
+        if (!matchesOwnerFilter(g.id, ownerFilter)) return false;
         if (!q) return true;
         return g.name.toLowerCase().includes(q);
       });
@@ -1634,6 +1675,7 @@
         return;
       }
       guestSearch.value = "";
+      guestOwnerFilter.value = "";
       guestModal.classList.add("open");
       renderPicker();
       guestSearch.focus();
@@ -1644,15 +1686,16 @@
     }
 
     function renderPicker() {
-      const list = availableGuests(guestSearch.value);
+      const list = availableGuests(guestSearch.value, guestOwnerFilter.value);
       modalMeta.textContent = `${list.length} достапни`;
       pickerList.innerHTML = "";
       if (!list.length) {
         const empty = document.createElement("div");
         empty.className = "picker-empty";
-        empty.textContent = guestSearch.value.trim()
-          ? "Нема резултат."
-          : "Сите гости се веќе распоредени.";
+        empty.textContent =
+          guestSearch.value.trim() || guestOwnerFilter.value
+            ? "Нема резултат."
+            : "Сите гости се веќе распоредени.";
         pickerList.appendChild(empty);
         return;
       }
@@ -1738,6 +1781,7 @@
       if (e.key === "Escape" && guestModal.classList.contains("open")) closeModal();
     });
     guestSearch.addEventListener("input", renderPicker);
+    guestOwnerFilter.addEventListener("change", renderPicker);
 
     transferTarget.addEventListener("change", updateTransferUi);
     transferBtn.addEventListener("click", transferSelectedGuests);
@@ -1767,19 +1811,21 @@
     const remainingModal = document.getElementById("remainingModal");
     const remainingClose = document.getElementById("remainingClose");
     const remainingSearch = document.getElementById("remainingSearch");
+    const remainingOwnerFilter = document.getElementById("remainingOwnerFilter");
     const remainingMeta = document.getElementById("remainingMeta");
     const remainingList = document.getElementById("remainingList");
 
     function renderRemainingList() {
-      const list = availableGuests(remainingSearch.value);
+      const list = availableGuests(remainingSearch.value, remainingOwnerFilter.value);
       remainingMeta.textContent = `${list.length} преостанати`;
       remainingList.innerHTML = "";
       if (!list.length) {
         const empty = document.createElement("div");
         empty.className = "picker-empty";
-        empty.textContent = remainingSearch.value.trim()
-          ? "Нема резултат."
-          : "Сите гости се распоредени.";
+        empty.textContent =
+          remainingSearch.value.trim() || remainingOwnerFilter.value
+            ? "Нема резултат."
+            : "Сите гости се распоредени.";
         remainingList.appendChild(empty);
         return;
       }
@@ -1799,6 +1845,7 @@
 
     function openRemainingModal() {
       remainingSearch.value = "";
+      remainingOwnerFilter.value = "";
       remainingModal.classList.add("open");
       renderRemainingList();
       remainingSearch.focus();
@@ -1814,11 +1861,13 @@
       if (e.target === remainingModal) closeRemainingModal();
     });
     remainingSearch.addEventListener("input", renderRemainingList);
+    remainingOwnerFilter.addEventListener("change", renderRemainingList);
 
     const allGuestsBtn = document.getElementById("allGuestsBtn");
     const allGuestsModal = document.getElementById("allGuestsModal");
     const allGuestsClose = document.getElementById("allGuestsClose");
     const allGuestsSearch = document.getElementById("allGuestsSearch");
+    const allGuestsOwnerFilter = document.getElementById("allGuestsOwnerFilter");
     const allGuestsMeta = document.getElementById("allGuestsMeta");
     const allGuestsList = document.getElementById("allGuestsList");
     const allGuestsAddForm = document.getElementById("allGuestsAddForm");
@@ -1854,13 +1903,19 @@
 
     function renderAllGuestsList() {
       const q = allGuestsSearch.value.trim().toLowerCase();
-      const list = allGuests.filter((g) => !q || g.name.toLowerCase().includes(q));
+      const ownerQ = allGuestsOwnerFilter.value;
+      const list = allGuests.filter((g) => {
+        if (!matchesOwnerFilter(g.id, ownerQ)) return false;
+        if (!q) return true;
+        return g.name.toLowerCase().includes(q);
+      });
       allGuestsMeta.textContent = `${list.length} / ${allGuests.length} гости`;
       allGuestsList.innerHTML = "";
       if (!list.length) {
         const empty = document.createElement("div");
         empty.className = "picker-empty";
-        empty.textContent = q ? "Нема резултат." : "Нема гости. Додај нов.";
+        empty.textContent =
+          q || ownerQ ? "Нема резултат." : "Нема гости. Додај нов.";
         allGuestsList.appendChild(empty);
         return;
       }
@@ -1923,6 +1978,7 @@
 
     function openAllGuestsModal() {
       allGuestsSearch.value = "";
+      allGuestsOwnerFilter.value = "";
       allGuestsNewName.value = "";
       allGuestsModal.classList.add("open");
       renderAllGuestsList();
@@ -1939,6 +1995,7 @@
       if (e.target === allGuestsModal) closeAllGuestsModal();
     });
     allGuestsSearch.addEventListener("input", renderAllGuestsList);
+    allGuestsOwnerFilter.addEventListener("change", renderAllGuestsList);
     allGuestsAddForm.addEventListener("submit", (e) => {
       e.preventDefault();
       const name = allGuestsNewName.value.trim();
