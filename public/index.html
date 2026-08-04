@@ -76,10 +76,6 @@
       align-items: start;
     }
 
-    @media (max-width: 900px) {
-      .layout { grid-template-columns: 1fr; }
-    }
-
     .hall-wrap {
       background: var(--floor);
       border: 10px solid var(--wall);
@@ -87,14 +83,27 @@
       padding: 12px;
       position: relative;
       overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .hall-fit-outer {
+      width: 100%;
+      height: calc(640px * var(--hall-scale, 1));
+      overflow: hidden;
+    }
+
+    .hall-fit {
+      width: 980px;
+      height: 640px;
+      transform: scale(var(--hall-scale, 1));
+      transform-origin: top left;
     }
 
     .hall {
       position: relative;
-      min-width: 980px;
       width: 980px;
       height: 640px;
-      margin: 0 auto;
+      margin: 0;
     }
 
     .zone {
@@ -836,6 +845,130 @@
       white-space: nowrap;
       min-width: 70px;
     }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+        padding: 10px;
+        gap: 12px;
+      }
+      header {
+        padding: 10px 12px;
+        gap: 8px;
+      }
+      header h1 { font-size: 1rem; }
+      header .stats {
+        width: 100%;
+        order: 3;
+        font-size: 0.8rem;
+        line-height: 1.35;
+      }
+      header .header-actions {
+        width: 100%;
+      }
+      header .header-actions button {
+        flex: 1 1 auto;
+        min-height: 40px;
+      }
+      .hall-wrap {
+        border-width: 6px;
+        padding: 8px;
+      }
+      .panel {
+        position: static;
+        max-height: none;
+        top: auto;
+      }
+      .legend {
+        gap: 10px;
+        font-size: 0.8rem;
+      }
+      .seating-overview .filters {
+        flex-direction: column;
+      }
+      .seating-overview .filters input,
+      .seating-overview .filters select {
+        width: 100%;
+        flex: none;
+      }
+      .seating-overview .table-scroll {
+        max-height: none;
+        overflow-x: auto;
+      }
+      .seating-overview table {
+        min-width: 520px;
+      }
+      .modal-backdrop {
+        padding: 8px;
+        align-items: stretch;
+      }
+      .modal,
+      .modal.modal-lg {
+        width: 100%;
+        max-height: calc(100vh - 16px);
+        border-radius: 10px;
+        margin: 0;
+      }
+      .modal .search-wrap {
+        flex-direction: column;
+      }
+      .modal .search-wrap input,
+      .modal .search-wrap select {
+        width: 100%;
+        flex: none;
+      }
+      .modal .add-row {
+        flex-wrap: wrap;
+      }
+      .manage-list.cols-4 li,
+      .manage-list.cols-4 .col-head {
+        grid-template-columns: minmax(0, 1fr) minmax(110px, 130px) minmax(64px, 80px) 32px;
+        gap: 6px;
+      }
+      .manage-list.cols-2 li,
+      .manage-list.cols-2 .col-head {
+        grid-template-columns: minmax(0, 1fr) minmax(120px, 150px);
+      }
+      .manage-list li input[type="text"],
+      .manage-list li select.owner-select {
+        font-size: 16px; /* avoid iOS zoom */
+      }
+      .transfer-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .transfer-row select,
+      .panel .transfer-btn {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .manage-list.cols-4 .col-head,
+      .manage-list.cols-4 li {
+        grid-template-columns: minmax(0, 1fr) 112px;
+        grid-template-areas:
+          "name group"
+          "seat remove";
+      }
+      .manage-list.cols-4 .col-head span:nth-child(1) { grid-area: name; }
+      .manage-list.cols-4 .col-head span:nth-child(2) { grid-area: group; }
+      .manage-list.cols-4 .col-head span:nth-child(3),
+      .manage-list.cols-4 .col-head span:nth-child(4) { display: none; }
+      .manage-list.cols-4 li input[type="text"] { grid-area: name; }
+      .manage-list.cols-4 li select.owner-select { grid-area: group; }
+      .manage-list.cols-4 li .seat-info { grid-area: seat; }
+      .manage-list.cols-4 li .remove {
+        grid-area: remove;
+        justify-self: end;
+      }
+      .seating-overview .owner-cell {
+        min-width: 110px;
+      }
+      .seating-overview .guest-badge {
+        font-size: 0.75rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -851,11 +984,15 @@
   <div class="layout">
     <div>
       <div class="hall-wrap">
-        <div class="hall" id="hall">
-          <div class="zone shank">ШАНК</div>
-          <div class="zone vlez">ВЛЕЗ</div>
-          <div class="zone muzika">МУЗИКА</div>
-          <!-- tables injected by JS -->
+        <div class="hall-fit-outer" id="hallFitOuter">
+          <div class="hall-fit" id="hallFit">
+            <div class="hall" id="hall">
+              <div class="zone shank">ШАНК</div>
+              <div class="zone vlez">ВЛЕЗ</div>
+              <div class="zone muzika">МУЗИКА</div>
+              <!-- tables injected by JS -->
+            </div>
+          </div>
         </div>
       </div>
       <div class="legend">
@@ -2208,7 +2345,23 @@
       else if (remainingModal.classList.contains("open")) closeRemainingModal();
     });
 
-    bootstrap();
+    function fitHallToViewport() {
+      const wrap = document.querySelector(".hall-wrap");
+      if (!wrap) return;
+      const available = Math.max(260, wrap.clientWidth - 4);
+      const scale = Math.min(1, available / 980);
+      wrap.style.setProperty("--hall-scale", String(scale));
+    }
+
+    window.addEventListener("resize", fitHallToViewport);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", fitHallToViewport);
+    }
+
+    bootstrap().then(() => {
+      fitHallToViewport();
+      requestAnimationFrame(fitHallToViewport);
+    });
 
   </script>
 </body>
