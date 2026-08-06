@@ -161,6 +161,10 @@
       box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.45);
       outline: 2px solid #111;
     }
+    .table.multi-selected {
+      box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.55);
+      outline: 2px solid #1d4ed8;
+    }
     .table.dragging {
       opacity: 0.55;
     }
@@ -680,6 +684,12 @@
       flex: 0 0 auto;
       accent-color: #1d4ed8;
     }
+    .guest-list .table-tag {
+      font-size: 0.72rem;
+      color: var(--muted);
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
     .guest-list .gname {
       flex: 1;
       font-size: 0.95rem;
@@ -1115,30 +1125,34 @@
 
     <aside class="panel" id="panel">
       <h2 id="panelTitle">Избери маса</h2>
-      <p class="hint" id="panelHint">Кликни на маса на планот за да додаваш / бришеш / менуваш гости.</p>
+      <p class="hint" id="panelHint">Кликни на маса. Shift+клик за повеќе маси одеднаш.</p>
 
       <div id="panelBody" hidden>
-        <div class="capacity-row">
-          <label for="capacitySelect">Капацитет:</label>
-          <select id="capacitySelect"></select>
-          <span id="capacityNote" style="font-size:0.8rem;color:var(--muted)"></span>
+        <p class="hint" id="multiHint" hidden>Преглед на повеќе маси. Shift+клик за додавање/отстранување. Кликни без Shift за една маса.</p>
+        <div id="singleTableControls">
+          <div class="capacity-row">
+            <label for="capacitySelect">Капацитет:</label>
+            <select id="capacitySelect"></select>
+            <span id="capacityNote" style="font-size:0.8rem;color:var(--muted)"></span>
+          </div>
+          <div class="capacity-row">
+            <label for="ownerSelect">Група:</label>
+            <select id="ownerSelect"></select>
+          </div>
+          <button type="button" class="add-guest-btn" id="addBtn">+ Додај гостин</button>
         </div>
-        <div class="capacity-row">
-          <label for="ownerSelect">Група:</label>
-          <select id="ownerSelect"></select>
-        </div>
-
-        <button type="button" class="add-guest-btn" id="addBtn">+ Додај гостин</button>
         <label class="select-all-row" id="selectAllRow" hidden>
           <input type="checkbox" id="selectAllGuests" class="pick" />
           <span>Селектирај ги сите</span>
         </label>
         <ul class="guest-list" id="guestList"></ul>
-        <div class="transfer-row" id="transferRow" hidden>
-          <select id="transferTarget" aria-label="Целна маса"></select>
-          <button type="button" class="secondary transfer-btn" id="transferBtn" disabled>Префрли</button>
+        <div id="singleTableActions">
+          <div class="transfer-row" id="transferRow" hidden>
+            <select id="transferTarget" aria-label="Целна маса"></select>
+            <button type="button" class="secondary transfer-btn" id="transferBtn" disabled>Префрли</button>
+          </div>
+          <button type="button" class="secondary" id="clearTableBtn">Избриши ги сите од оваа маса</button>
         </div>
-        <button type="button" class="secondary" id="clearTableBtn">Избриши ги сите од оваа маса</button>
       </div>
     </aside>
   </div>
@@ -1524,12 +1538,16 @@
     }
 
     let selectedId = null;
+    let selectedIds = new Set();
 
 
     const hall = document.getElementById("hall");
     const panelTitle = document.getElementById("panelTitle");
     const panelHint = document.getElementById("panelHint");
     const panelBody = document.getElementById("panelBody");
+    const multiHint = document.getElementById("multiHint");
+    const singleTableControls = document.getElementById("singleTableControls");
+    const singleTableActions = document.getElementById("singleTableActions");
     const capacitySelect = document.getElementById("capacitySelect");
     const capacityNote = document.getElementById("capacityNote");
     const ownerSelect = document.getElementById("ownerSelect");
@@ -1724,8 +1742,8 @@
 
       saveState();
       refreshTableBadges();
-      if (selectedId === fromId || selectedId === toId) {
-        selectTable(selectedId);
+      if (selectedIds.has(fromId) || selectedIds.has(toId)) {
+        selectTable(selectedId || fromId);
       }
       showToast(
         `Заменети: ${tableDisplayName(fromId)} ↔ ${tableDisplayName(toId)}`
@@ -1746,12 +1764,12 @@
         el.title = `${owner ? owner.label + " · " : ""}Повлечи на друга маса за замена`;
         el.innerHTML = `<span class="num">${def.label}</span><span class="count"></span>`;
 
-        el.addEventListener("click", () => {
+        el.addEventListener("click", (e) => {
           if (suppressTableClick) {
             suppressTableClick = false;
             return;
           }
-          selectTable(def.id);
+          selectTable(def.id, { additive: e.shiftKey });
         });
 
         el.addEventListener("dragstart", (e) => {
@@ -1856,7 +1874,7 @@
         const t = state.tables[def.id];
         const tr = document.createElement("tr");
         tr.dataset.tableId = def.id;
-        if (selectedId === def.id) tr.classList.add("active-row");
+        if (selectedIds.has(def.id)) tr.classList.add("active-row");
 
         const masa = document.createElement("td");
         masa.className = "masa-cell";
@@ -1905,7 +1923,7 @@
         tr.appendChild(ownerTd);
         tr.appendChild(guests);
         tr.appendChild(count);
-        tr.addEventListener("click", () => selectTable(def.id));
+        tr.addEventListener("click", (e) => selectTable(def.id, { additive: e.shiftKey }));
         seatingTableBody.appendChild(tr);
       }
     }
@@ -1937,10 +1955,12 @@
           byOwner[ownerId].seats += t.capacity;
         }
         const el = tableEls[def.id];
-        el.classList.remove("full", "partial", "active");
+        el.classList.remove("full", "partial", "active", "multi-selected");
         const status = fillStatus(t);
         if (status) el.classList.add(status);
-        if (selectedId === def.id) el.classList.add("active");
+        if (selectedIds.has(def.id)) {
+          el.classList.add(selectedIds.size > 1 ? "multi-selected" : "active");
+        }
         el.querySelector(".count").textContent = `${t.guests.length}/${t.capacity}`;
       }
       for (const id of Object.keys(legendCounts)) {
@@ -1953,16 +1973,58 @@
       renderSeatingOverview();
     }
 
-    function selectTable(id) {
-      selectedId = id;
+    function sortedSelectedIds() {
+      return [...selectedIds].sort((a, b) => {
+        const da = defById(a);
+        const db = defById(b);
+        return tableSortKey(da) - tableSortKey(db);
+      });
+    }
+
+    function isMultiSelect() {
+      return selectedIds.size > 1;
+    }
+
+    function selectTable(id, { additive = false } = {}) {
+      if (additive && selectedIds.size > 0) {
+        if (selectedIds.has(id) && selectedIds.size > 1) {
+          selectedIds.delete(id);
+          selectedId = [...selectedIds][selectedIds.size - 1];
+        } else {
+          selectedIds.add(id);
+          selectedId = id;
+        }
+      } else {
+        selectedIds = new Set([id]);
+        selectedId = id;
+      }
+
+      const multi = isMultiSelect();
+      panelBody.hidden = false;
+      multiHint.hidden = !multi;
+      singleTableControls.hidden = multi;
+      singleTableActions.hidden = multi;
+
+      if (multi) {
+        const labels = sortedSelectedIds().map((tid) => tableDisplayName(tid));
+        const guestCount = sortedSelectedIds().reduce(
+          (sum, tid) => sum + state.tables[tid].guests.length,
+          0
+        );
+        panelTitle.textContent = `${selectedIds.size} маси`;
+        panelHint.textContent = `${labels.join(" · ")} · Гости: ${guestCount}`;
+        renderGuestList();
+        refreshTableBadges();
+        return;
+      }
+
       const def = defById(id);
       const t = state.tables[id];
       const owner = ownerFor(id);
       panelTitle.textContent = def.id === HEAD_ID ? def.label : `Маса ${def.label}`;
       panelHint.textContent = owner
-        ? `${owner.label} · Гости: ${t.guests.length} / ${t.capacity}`
-        : `Гости: ${t.guests.length} / ${t.capacity}`;
-      panelBody.hidden = false;
+        ? `${owner.label} · Гости: ${t.guests.length} / ${t.capacity} · Shift+клик за повеќе`
+        : `Гости: ${t.guests.length} / ${t.capacity} · Shift+клик за повеќе`;
 
       capacitySelect.innerHTML = "";
       if (def.capacityFixed != null) {
@@ -2042,10 +2104,79 @@
     }
 
     function renderGuestList() {
-      const t = state.tables[selectedId];
       guestList.innerHTML = "";
       selectAllGuests.checked = false;
       selectAllGuests.indeterminate = false;
+
+      if (isMultiSelect()) {
+        selectAllRow.hidden = true;
+        transferRow.hidden = true;
+        let any = false;
+        for (const tableId of sortedSelectedIds()) {
+          const t = state.tables[tableId];
+          t.guests.forEach((guest, index) => {
+            any = true;
+            const li = document.createElement("li");
+            const name = document.createElement("input");
+            name.type = "text";
+            name.className = "gname";
+            name.value = guest.name;
+            name.setAttribute("aria-label", "Име на гостин");
+            name.addEventListener("change", () => {
+              const next = name.value.trim();
+              if (!next) {
+                name.value = guest.name;
+                showToast("Името не може да е празно.");
+                return;
+              }
+              renameGuestEverywhere(guest.id, next);
+              saveGuests();
+              saveState();
+              refreshTableBadges();
+              if (guestModal.classList.contains("open")) renderPicker();
+              if (allGuestsModal.classList.contains("open")) renderAllGuestsList();
+              if (remainingModal.classList.contains("open")) renderRemainingList();
+            });
+
+            const tag = document.createElement("span");
+            tag.className = "table-tag";
+            tag.textContent = tableDisplayName(tableId);
+
+            const rm = document.createElement("button");
+            rm.type = "button";
+            rm.className = "remove";
+            rm.textContent = "×";
+            rm.setAttribute("aria-label", "Избриши");
+            rm.title = "Избриши";
+            rm.addEventListener("click", () => {
+              setGuestOwner(guest.id, t.owner || defaultOwnerFor(tableId));
+              t.guests.splice(index, 1);
+              saveState();
+              renderGuestList();
+              refreshPanelMeta();
+              refreshTableBadges();
+              if (guestModal.classList.contains("open")) renderPicker();
+              if (remainingModal.classList.contains("open")) renderRemainingList();
+            });
+
+            li.appendChild(name);
+            li.appendChild(tag);
+            li.appendChild(createOwnerDot(guest.id));
+            li.appendChild(rm);
+            guestList.appendChild(li);
+          });
+        }
+        if (!any) {
+          const p = document.createElement("li");
+          p.className = "empty-state";
+          p.textContent = "Нема гости на избраните маси.";
+          guestList.appendChild(p);
+        }
+        refreshPanelMeta();
+        return;
+      }
+
+      const t = state.tables[selectedId];
       if (!t.guests.length) {
         const p = document.createElement("li");
         p.className = "empty-state";
@@ -2148,12 +2279,22 @@
     }
 
     function refreshPanelMeta() {
-      if (!selectedId) return;
+      if (!selectedId || !selectedIds.size) return;
+      if (isMultiSelect()) {
+        const labels = sortedSelectedIds().map((tid) => tableDisplayName(tid));
+        const guestCount = sortedSelectedIds().reduce(
+          (sum, tid) => sum + state.tables[tid].guests.length,
+          0
+        );
+        panelTitle.textContent = `${selectedIds.size} маси`;
+        panelHint.textContent = `${labels.join(" · ")} · Гости: ${guestCount}`;
+        return;
+      }
       const t = state.tables[selectedId];
       const owner = ownerFor(selectedId);
       panelHint.textContent = owner
-        ? `${owner.label} · Гости: ${t.guests.length} / ${t.capacity}`
-        : `Гости: ${t.guests.length} / ${t.capacity}`;
+        ? `${owner.label} · Гости: ${t.guests.length} / ${t.capacity} · Shift+клик за повеќе`
+        : `Гости: ${t.guests.length} / ${t.capacity} · Shift+клик за повеќе`;
       addBtn.disabled = t.guests.length >= t.capacity;
       updateTransferUi();
     }
