@@ -69,11 +69,24 @@
     .layout {
       display: grid;
       grid-template-columns: 1fr minmax(280px, 340px);
+      grid-template-areas:
+        "hall panel"
+        "overview panel";
       gap: 16px;
       padding: 16px;
       max-width: 1700px;
       margin: 0 auto;
       align-items: start;
+    }
+    .hall-col {
+      grid-area: hall;
+      min-width: 0;
+    }
+    .layout > .panel {
+      grid-area: panel;
+    }
+    .layout > .seating-overview {
+      grid-area: overview;
     }
 
     .hall-wrap {
@@ -286,7 +299,7 @@
     }
 
     .seating-overview {
-      margin-top: 16px;
+      margin-top: 0;
       background: #fff;
       border-radius: 8px;
       box-shadow: var(--shadow);
@@ -940,6 +953,10 @@
     @media (max-width: 900px) {
       .layout {
         grid-template-columns: 1fr;
+        grid-template-areas:
+          "hall"
+          "panel"
+          "overview";
         padding: 10px;
         gap: 12px;
       }
@@ -1077,7 +1094,7 @@
   </header>
 
   <div class="layout">
-    <div>
+    <div class="hall-col">
       <div class="hall-wrap">
         <div class="hall-fit-outer" id="hallFitOuter">
           <div class="hall-fit" id="hallFit">
@@ -1094,32 +1111,6 @@
         <span class="legend-item toni">Тони и Вале <span class="legend-count" id="legendToni">(0/0)</span></span>
         <span class="legend-item najdan">Најдан и Снеже <span class="legend-count" id="legendNajdan">(0/0)</span></span>
         <span class="legend-item ane">Петар и Ане <span class="legend-count" id="legendAne">(0/0)</span></span>
-      </div>
-
-      <div class="seating-overview">
-        <h3>Распоред по маси</h3>
-        <div class="filters">
-          <input type="search" id="overviewNameFilter" placeholder="Пребарај по име..." autocomplete="off" />
-          <select id="overviewOwnerFilter" aria-label="Филтер по група">
-            <option value="">Сите групи</option>
-            <option value="toni">Тони и Вале</option>
-            <option value="najdan">Најдан и Снеже</option>
-            <option value="ane">Петар и Ане</option>
-          </select>
-        </div>
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Маса</th>
-                <th>Група</th>
-                <th>Гости</th>
-                <th>Бр.</th>
-              </tr>
-            </thead>
-            <tbody id="seatingTableBody"></tbody>
-          </table>
-        </div>
       </div>
     </div>
 
@@ -1155,6 +1146,32 @@
         </div>
       </div>
     </aside>
+
+    <div class="seating-overview">
+      <h3>Распоред по маси</h3>
+      <div class="filters">
+        <input type="search" id="overviewNameFilter" placeholder="Пребарај по име..." autocomplete="off" />
+        <select id="overviewOwnerFilter" aria-label="Филтер по група">
+          <option value="">Сите групи</option>
+          <option value="toni">Тони и Вале</option>
+          <option value="najdan">Најдан и Снеже</option>
+          <option value="ane">Петар и Ане</option>
+        </select>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Маса</th>
+              <th>Група</th>
+              <th>Гости</th>
+              <th>Бр.</th>
+            </tr>
+          </thead>
+          <tbody id="seatingTableBody"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <div class="toast" id="toast"></div>
@@ -1570,6 +1587,16 @@
     const modalMeta = document.getElementById("modalMeta");
     const tableEls = {};
 
+    function maybeScrollToPanelOnMobile(isMultiSelect) {
+      if (isMultiSelect) return;
+      if (!window.matchMedia("(max-width: 900px)").matches) return;
+      const panelEl = document.getElementById("panel");
+      if (!panelEl) return;
+      requestAnimationFrame(() => {
+        panelEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+
     function showToast(msg) {
       toast.textContent = msg;
       toast.classList.add("show");
@@ -1770,6 +1797,7 @@
             return;
           }
           selectTable(def.id, { additive: e.shiftKey });
+          maybeScrollToPanelOnMobile(e.shiftKey);
         });
 
         el.addEventListener("dragstart", (e) => {
