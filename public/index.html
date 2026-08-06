@@ -465,6 +465,13 @@
     .manage-list.cols-2 li {
       grid-template-columns: minmax(0, 1fr) 170px;
     }
+    .manage-list.cols-3 li {
+      display: grid;
+      gap: 8px;
+      align-items: center;
+      padding: 8px;
+      grid-template-columns: minmax(0, 1fr) 160px 36px;
+    }
     .manage-list.cols-4 li {
       grid-template-columns: minmax(0, 1.4fr) 160px 110px 36px;
     }
@@ -485,6 +492,22 @@
     }
     .manage-list.cols-2 .col-head {
       grid-template-columns: minmax(0, 1fr) 170px;
+    }
+    .manage-list.cols-3 .col-head {
+      display: grid;
+      gap: 8px;
+      padding: 4px 8px 8px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      border-bottom: 1px solid #eee;
+      position: sticky;
+      top: 0;
+      background: #fff;
+      z-index: 1;
+      grid-template-columns: minmax(0, 1fr) 160px 36px;
     }
     .manage-list.cols-4 .col-head {
       grid-template-columns: minmax(0, 1.4fr) 160px 110px 36px;
@@ -795,6 +818,21 @@
       color: var(--muted);
       font-size: 0.9rem;
     }
+    .modal .picker-create {
+      margin-top: 12px;
+      width: 100%;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+    .modal .picker-create:hover {
+      filter: brightness(1.05);
+    }
     .modal .add-row {
       display: flex;
       gap: 8px;
@@ -928,6 +966,10 @@
       .manage-list.cols-2 li,
       .manage-list.cols-2 .col-head {
         grid-template-columns: minmax(0, 1fr) minmax(120px, 150px);
+      }
+      .manage-list.cols-3 li,
+      .manage-list.cols-3 .col-head {
+        grid-template-columns: minmax(0, 1fr) minmax(110px, 140px) 32px;
       }
       .manage-list li input[type="text"],
       .manage-list li select.owner-select {
@@ -1098,7 +1140,7 @@
         </select>
       </div>
       <div class="modal-meta" id="remainingMeta"></div>
-      <ul class="manage-list cols-2" id="remainingList"></ul>
+      <ul class="manage-list cols-3" id="remainingList"></ul>
     </div>
   </div>
 
@@ -1957,16 +1999,27 @@
     }
 
     function renderPicker() {
-      const list = availableGuests(guestSearch.value, guestOwnerFilter.value);
+      const q = guestSearch.value.trim();
+      const list = availableGuests(q, guestOwnerFilter.value);
       modalMeta.textContent = `${list.length} достапни`;
       pickerList.innerHTML = "";
       if (!list.length) {
         const empty = document.createElement("div");
         empty.className = "picker-empty";
-        empty.textContent =
-          guestSearch.value.trim() || guestOwnerFilter.value
+        if (q) {
+          empty.textContent = `Нема резултат за „${q}“.`;
+          const createBtn = document.createElement("button");
+          createBtn.type = "button";
+          createBtn.className = "picker-create";
+          createBtn.textContent = `+ Креирај „${q}“ и додај`;
+          createBtn.addEventListener("click", () => createAndAddGuest(q));
+          empty.appendChild(document.createElement("br"));
+          empty.appendChild(createBtn);
+        } else {
+          empty.textContent = guestOwnerFilter.value
             ? "Нема резултат."
             : "Сите гости се веќе распоредени.";
+        }
         pickerList.appendChild(empty);
         return;
       }
@@ -1986,6 +2039,29 @@
         li.appendChild(btn);
         pickerList.appendChild(li);
       }
+    }
+
+    function createAndAddGuest(name) {
+      const trimmed = String(name || "").trim();
+      if (!trimmed) return;
+      if (!selectedId) return;
+      const t = state.tables[selectedId];
+      if (t.guests.length >= t.capacity) {
+        showToast("Масата е полна.");
+        closeModal();
+        return;
+      }
+      const guest = {
+        id: nextGuestId(),
+        name: trimmed,
+        owner: t.owner || defaultOwnerFor(selectedId),
+      };
+      allGuests.push({ id: guest.id, name: guest.name, owner: guest.owner });
+      saveGuests();
+      guestSearch.value = "";
+      guestOwnerFilter.value = "";
+      addGuestFromList(guest);
+      showToast(`Креиран и додаден: ${trimmed}`);
     }
 
     function addGuestFromList(guest) {
@@ -2142,7 +2218,7 @@
         remainingList.appendChild(empty);
         return;
       }
-      appendManageHeader(remainingList, ["Име", "Група"]);
+      appendManageHeader(remainingList, ["Име", "Група", ""]);
       for (const g of list) {
         const li = document.createElement("li");
         const input = document.createElement("input");
@@ -2164,8 +2240,30 @@
           if (allGuestsModal.classList.contains("open")) renderAllGuestsList();
           if (guestModal.classList.contains("open")) renderPicker();
         });
+
+        const rm = document.createElement("button");
+        rm.type = "button";
+        rm.className = "remove";
+        rm.textContent = "×";
+        rm.setAttribute("aria-label", "Избриши гостин");
+        rm.title = "Избриши гостин";
+        rm.addEventListener("click", () => {
+          if (!confirm(`Избриши „${g.name}“ целосно?`)) return;
+          allGuests = allGuests.filter((x) => x.id !== g.id);
+          removeGuestEverywhere(g.id);
+          saveGuests();
+          saveState();
+          if (selectedId) renderGuestList();
+          refreshTableBadges();
+          renderRemainingList();
+          if (allGuestsModal.classList.contains("open")) renderAllGuestsList();
+          if (guestModal.classList.contains("open")) renderPicker();
+          showToast(`Избришан: ${g.name}`);
+        });
+
         li.appendChild(input);
         li.appendChild(createOwnerSelect(g.id));
+        li.appendChild(rm);
         remainingList.appendChild(li);
       }
     }
