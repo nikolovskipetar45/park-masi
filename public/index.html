@@ -161,6 +161,19 @@
       box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.45);
       outline: 2px solid #111;
     }
+    .table.dragging {
+      opacity: 0.55;
+    }
+    .table.drop-target {
+      box-shadow: 0 0 0 4px #1d4ed8;
+      outline: 2px solid #1d4ed8;
+    }
+    .table[draggable="true"] {
+      cursor: grab;
+    }
+    .table[draggable="true"]:active {
+      cursor: grabbing;
+    }
     /* Групи — боја на маса */
     .table.owner-toni {
       border-color: #1d4ed8;
@@ -830,8 +843,38 @@
       font-size: 0.95rem;
       font-weight: 700;
     }
-    .modal .picker-create:hover {
-      filter: brightness(1.05);
+    .modal .swap-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .modal .swap-body p {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+    .modal .swap-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .modal .swap-actions button {
+      flex: 1 1 140px;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    .modal .swap-actions .confirm {
+      background: var(--accent);
+      color: #fff;
+    }
+    .modal .swap-actions .cancel {
+      background: #eee;
+      color: #111;
     }
     .modal .add-row {
       display: flex;
@@ -1101,6 +1144,22 @@
   </div>
 
   <div class="toast" id="toast"></div>
+
+  <div class="modal-backdrop" id="swapModal" role="dialog" aria-modal="true" aria-labelledby="swapTitle">
+    <div class="modal">
+      <header>
+        <h3 id="swapTitle">Замени гости?</h3>
+        <button type="button" class="close" id="swapClose" aria-label="Затвори">&times;</button>
+      </header>
+      <div class="swap-body">
+        <p id="swapMessage"></p>
+        <div class="swap-actions">
+          <button type="button" class="confirm" id="swapConfirm">Да, замени</button>
+          <button type="button" class="cancel" id="swapCancel">Откажи</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="modal-backdrop" id="guestModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal">
@@ -1611,6 +1670,68 @@
       return el;
     }
 
+    let dragSourceId = null;
+    let suppressTableClick = false;
+    let pendingSwap = null;
+
+    const swapModal = document.getElementById("swapModal");
+    const swapMessage = document.getElementById("swapMessage");
+    const swapConfirm = document.getElementById("swapConfirm");
+    const swapCancel = document.getElementById("swapCancel");
+    const swapClose = document.getElementById("swapClose");
+
+    function tableDisplayName(id) {
+      const def = defById(id);
+      if (!def) return id;
+      return def.id === HEAD_ID ? def.label : `Маса ${def.label}`;
+    }
+
+    function clearDropTargets() {
+      for (const el of Object.values(tableEls)) {
+        el.classList.remove("drop-target", "dragging");
+      }
+    }
+
+    function openSwapModal(fromId, toId) {
+      pendingSwap = { fromId, toId };
+      const from = state.tables[fromId];
+      const to = state.tables[toId];
+      swapMessage.textContent =
+        `Да ги заменам гостите помеѓу ${tableDisplayName(fromId)} (${from.guests.length}) ` +
+        `и ${tableDisplayName(toId)} (${to.guests.length})?`;
+      swapModal.classList.add("open");
+    }
+
+    function closeSwapModal() {
+      swapModal.classList.remove("open");
+      pendingSwap = null;
+      clearDropTargets();
+    }
+
+    function swapTableGuests(fromId, toId) {
+      const a = state.tables[fromId];
+      const b = state.tables[toId];
+      if (!a || !b) return;
+      const guestsA = a.guests;
+      const guestsB = b.guests;
+      a.guests = guestsB;
+      b.guests = guestsA;
+
+      const ownerA = a.owner || defaultOwnerFor(fromId);
+      const ownerB = b.owner || defaultOwnerFor(toId);
+      for (const g of a.guests) setGuestOwner(g.id, ownerA);
+      for (const g of b.guests) setGuestOwner(g.id, ownerB);
+
+      saveState();
+      refreshTableBadges();
+      if (selectedId === fromId || selectedId === toId) {
+        selectTable(selectedId);
+      }
+      showToast(
+        `Заменети: ${tableDisplayName(fromId)} ↔ ${tableDisplayName(toId)}`
+      );
+    }
+
     function renderTables() {
       for (const def of TABLE_DEFS) {
         const el = document.createElement("button");
@@ -1619,16 +1740,73 @@
         const owner = ownerFor(def.id);
         if (owner) el.classList.add(owner.className);
         el.dataset.id = def.id;
+        el.draggable = true;
         const ownerLabel = owner ? ` (${owner.label})` : "";
         el.setAttribute("aria-label", `Маса ${def.label}${ownerLabel}`);
-        el.title = owner ? owner.label : def.label;
+        el.title = `${owner ? owner.label + " · " : ""}Повлечи на друга маса за замена`;
         el.innerHTML = `<span class="num">${def.label}</span><span class="count"></span>`;
-        el.addEventListener("click", () => selectTable(def.id));
+
+        el.addEventListener("click", () => {
+          if (suppressTableClick) {
+            suppressTableClick = false;
+            return;
+          }
+          selectTable(def.id);
+        });
+
+        el.addEventListener("dragstart", (e) => {
+          dragSourceId = def.id;
+          el.classList.add("dragging");
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", def.id);
+        });
+
+        el.addEventListener("dragend", () => {
+          clearDropTargets();
+          if (dragSourceId) suppressTableClick = true;
+          dragSourceId = null;
+        });
+
+        el.addEventListener("dragover", (e) => {
+          if (!dragSourceId || dragSourceId === def.id) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          el.classList.add("drop-target");
+        });
+
+        el.addEventListener("dragleave", () => {
+          el.classList.remove("drop-target");
+        });
+
+        el.addEventListener("drop", (e) => {
+          e.preventDefault();
+          const fromId = dragSourceId || e.dataTransfer.getData("text/plain");
+          clearDropTargets();
+          if (!fromId || fromId === def.id) return;
+          suppressTableClick = true;
+          openSwapModal(fromId, def.id);
+        });
+
         hall.appendChild(el);
         tableEls[def.id] = el;
       }
       refreshTableBadges();
     }
+
+    swapConfirm.addEventListener("click", () => {
+      if (!pendingSwap) return;
+      const { fromId, toId } = pendingSwap;
+      closeSwapModal();
+      swapTableGuests(fromId, toId);
+    });
+    swapCancel.addEventListener("click", closeSwapModal);
+    swapClose.addEventListener("click", closeSwapModal);
+    swapModal.addEventListener("click", (e) => {
+      if (e.target === swapModal) closeSwapModal();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && swapModal.classList.contains("open")) closeSwapModal();
+    });
 
     function fillStatus(table) {
       const n = table.guests.length;
