@@ -2848,7 +2848,7 @@
   <meta charset="UTF-8" />
   <title>Распоред по маси</title>
   <style>
-    @page { size: A4; margin: 10mm; }
+    @page { size: A4; margin: 8mm; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
@@ -2872,24 +2872,24 @@
       font-weight: 700;
       cursor: pointer;
     }
-    .sheet { padding: 10px; }
+    .sheet { padding: 6px; }
     table {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
-      margin: 0 0 16pt;
+      margin: 0 0 8pt;
       page-break-inside: avoid;
       break-inside: avoid;
     }
     th, td {
       border: 0.6pt solid #000;
-      padding: 5pt 7pt;
+      padding: 2pt 4pt;
       text-align: left;
       vertical-align: middle;
-      font-size: 11pt;
-      line-height: 1.35;
+      font-size: 9.5pt;
+      line-height: 1.2;
     }
-    th { font-size: 12pt; font-weight: 700; }
+    th { font-size: 10.5pt; font-weight: 700; }
     @media print {
       .toolbar { display: none; }
       .sheet { padding: 0; }
@@ -2981,17 +2981,17 @@
       ]);
     }
 
-    function wP(text, { bold = false, size = 22, keepNext = false } = {}) {
+    function wP(text, { bold = false, size = 19, keepNext = false } = {}) {
       const rPr = `<w:rPr>
         <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
         <w:sz w:val="${size}"/><w:szCs w:val="${size}"/>
         ${bold ? "<w:b/>" : ""}
       </w:rPr>`;
       const keep = keepNext ? "<w:keepNext/><w:keepLines/>" : "<w:keepLines/>";
-      return `<w:p><w:pPr>${keep}<w:jc w:val="left"/><w:spacing w:before="0" w:after="0" w:line="276" w:lineRule="auto"/></w:pPr><w:r>${rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+      return `<w:p><w:pPr>${keep}<w:jc w:val="left"/><w:spacing w:before="0" w:after="0" w:line="220" w:lineRule="auto"/></w:pPr><w:r>${rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
     }
 
-    function wTc(text, width, { bold = false, size = 22, keepNext = false } = {}) {
+    function wTc(text, width, { bold = false, size = 19, keepNext = false } = {}) {
       return `<w:tc>
         <w:tcPr>
           <w:tcW w:w="${width}" w:type="dxa"/>
@@ -3001,7 +3001,7 @@
       </w:tc>`;
     }
 
-    function wTr(cells, { height = 340 } = {}) {
+    function wTr(cells, { height = 240 } = {}) {
       return `<w:tr>
         <w:trPr>
           <w:cantSplit/>
@@ -3023,7 +3023,7 @@
           <w:tc>
             <w:tcPr><w:tcW w:w="${width}" w:type="dxa"/></w:tcPr>
             ${inner}
-            <w:p/>
+            <w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/></w:pPr></w:p>
           </w:tc>
         </w:tr>
       </w:tbl>`;
@@ -3037,10 +3037,10 @@
       const header = wTr(
         slice.map((card) => wTc(card ? card.title : "", colW, {
           bold: true,
-          size: 24,
+          size: 21,
           keepNext: maxNames > 0,
         })).join(""),
-        { height: 400 }
+        { height: 280 }
       );
       const body = [];
       for (let n = 0; n < maxNames; n++) {
@@ -3054,7 +3054,7 @@
           <w:tblLayout w:type="fixed"/>
           <w:tblBorders>${borders}</w:tblBorders>
           <w:tblCellMar>
-            <w:top w:w="80"/><w:left w:w="100"/><w:bottom w:w="80"/><w:right w:w="100"/>
+            <w:top w:w="30"/><w:left w:w="50"/><w:bottom w:w="30"/><w:right w:w="50"/>
           </w:tblCellMar>
         </w:tblPr>
         <w:tblGrid>${`<w:gridCol w:w="${colW}"/>`.repeat(slice.length)}</w:tblGrid>
@@ -3072,7 +3072,7 @@
         const slice = cards.slice(i, i + cols);
         while (slice.length < cols) slice.push(null);
         if (blocks.length) {
-          blocks.push(`<w:p><w:pPr><w:spacing w:before="280" w:after="40"/></w:pPr></w:p>`);
+          blocks.push(`<w:p><w:pPr><w:spacing w:before="80" w:after="0" w:line="40" w:lineRule="exact"/></w:pPr></w:p>`);
         }
         blocks.push(buildDocxTable(slice, colW));
       }
@@ -3083,7 +3083,7 @@
     ${blocks.join("") || wP("")}
     <w:sectPr>
       <w:pgSz w:w="11906" w:h="16838"/>
-      <w:pgMar w:top="567" w:right="567" w:bottom="567" w:left="567" w:header="0" w:footer="0"/>
+      <w:pgMar w:top="425" w:right="425" w:bottom="425" w:left="425" w:header="0" w:footer="0"/>
     </w:sectPr>
   </w:body>
 </w:document>`;
@@ -3153,13 +3153,13 @@
           pageUsed += 1;
         }
 
-        rowsXml.push(`<row r="${r}" ht="22" customHeight="1">${slice.map((card, c) =>
+        rowsXml.push(`<row r="${r}" ht="16" customHeight="1">${slice.map((card, c) =>
           xlsxInlineCell(`${colLetter(c)}${r}`, card ? card.title : "", 1)
         ).join("")}</row>`);
         r += 1;
 
         for (let n = 0; n < maxNames; n++) {
-          rowsXml.push(`<row r="${r}" ht="20" customHeight="1">${slice.map((card, c) =>
+          rowsXml.push(`<row r="${r}" ht="14" customHeight="1">${slice.map((card, c) =>
             xlsxInlineCell(`${colLetter(c)}${r}`, card?.names[n] || "", 2)
           ).join("")}</row>`);
           r += 1;
@@ -3197,8 +3197,8 @@
       const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <fonts count="2">
-    <font><sz val="11"/><color rgb="FF000000"/><name val="Arial"/><family val="2"/></font>
-    <font><b/><sz val="12"/><color rgb="FF000000"/><name val="Arial"/><family val="2"/></font>
+    <font><sz val="10"/><color rgb="FF000000"/><name val="Arial"/><family val="2"/></font>
+    <font><b/><sz val="11"/><color rgb="FF000000"/><name val="Arial"/><family val="2"/></font>
   </fonts>
   <fills count="2">
     <fill><patternFill patternType="none"/></fill>
