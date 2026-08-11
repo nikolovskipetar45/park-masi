@@ -2821,13 +2821,26 @@
       return cards;
     }
 
+    function chunkCards(cards, cols) {
+      const blocks = [];
+      for (let i = 0; i < cards.length; i += cols) {
+        const slice = cards.slice(i, i + cols);
+        while (slice.length < cols) slice.push(null);
+        blocks.push(slice);
+      }
+      return blocks;
+    }
+
     function buildPrintHtml() {
-      const cards = printCards().map((card) => `
-          <article class="card">
-            <h2>${escapeHtml(card.title)}</h2>
-            <ul>${card.names.map((n) => `<li>${escapeHtml(n)}</li>`).join("")}</ul>
-          </article>
-        `);
+      const blocks = chunkCards(printCards(), 3).map((slice) => {
+        const maxNames = Math.max(0, ...slice.map((c) => c?.names.length || 0));
+        const head = `<tr>${slice.map((c) => `<th>${escapeHtml(c ? c.title : "")}</th>`).join("")}</tr>`;
+        const rows = [];
+        for (let n = 0; n < maxNames; n++) {
+          rows.push(`<tr>${slice.map((c) => `<td>${escapeHtml(c?.names[n] || "")}</td>`).join("")}</tr>`);
+        }
+        return `<table>${head}${rows.join("")}</table>`;
+      });
 
       return `<!DOCTYPE html>
 <html lang="mk">
@@ -2835,12 +2848,12 @@
   <meta charset="UTF-8" />
   <title>Распоред по маси</title>
   <style>
-    @page { size: A4; margin: 8mm; }
+    @page { size: A4; margin: 10mm; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, sans-serif;
-      color: #111;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #000;
       background: #fff;
     }
     .toolbar {
@@ -2849,43 +2862,32 @@
       align-items: center;
       gap: 12px;
       padding: 10px 14px;
-      background: #111;
-      color: #fff;
+      border-bottom: 1px solid #000;
     }
     .toolbar button {
       background: #fff;
-      color: #111;
-      border: 0;
-      border-radius: 6px;
+      color: #000;
+      border: 1px solid #000;
       padding: 8px 14px;
       font-weight: 700;
       cursor: pointer;
     }
-    .sheet { padding: 8px; }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 5px;
+    .sheet { padding: 10px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      margin: 0 0 16pt;
     }
-    .card {
-      border: 1px solid #222;
-      border-radius: 3px;
-      padding: 4px 5px;
-      break-inside: avoid;
-      page-break-inside: avoid;
+    th, td {
+      border: 0.6pt solid #000;
+      padding: 5pt 7pt;
+      text-align: left;
+      vertical-align: middle;
+      font-size: 11pt;
+      line-height: 1.35;
     }
-    .card h2 {
-      margin: 0 0 3px;
-      font-size: 8pt;
-      text-align: center;
-    }
-    ul {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-      font-size: 6.5pt;
-      line-height: 1.22;
-    }
+    th { font-size: 12pt; font-weight: 700; }
     @media print {
       .toolbar { display: none; }
       .sheet { padding: 0; }
@@ -2894,12 +2896,10 @@
 </head>
 <body>
   <div class="toolbar">
-    <span>A4 распоред по маси</span>
+    <span>Распоред по маси</span>
     <button type="button" onclick="window.print()">Печати</button>
   </div>
-  <div class="sheet">
-    <div class="grid">${cards.join("")}</div>
-  </div>
+  <div class="sheet">${blocks.join("")}</div>
 </body>
 </html>`;
     }
@@ -2979,30 +2979,26 @@
       ]);
     }
 
-    function wP(text, { bold = false, center = false, size = 18, color = "222222" } = {}) {
-      const align = center ? `<w:jc w:val="center"/>` : `<w:jc w:val="left"/>`;
+    function wP(text, { bold = false, size = 22 } = {}) {
       const rPr = `<w:rPr>
-        <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>
+        <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
         <w:sz w:val="${size}"/><w:szCs w:val="${size}"/>
-        <w:color w:val="${color}"/>
         ${bold ? "<w:b/>" : ""}
       </w:rPr>`;
-      return `<w:p><w:pPr>${align}<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r>${rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+      return `<w:p><w:pPr><w:jc w:val="left"/><w:spacing w:before="0" w:after="0" w:line="276" w:lineRule="auto"/></w:pPr><w:r>${rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
     }
 
-    function wTc(text, { width, fill = "", bold = false, center = false, size = 18, color = "222222" } = {}) {
-      const shd = fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : "";
+    function wTc(text, width, { bold = false, size = 22 } = {}) {
       return `<w:tc>
         <w:tcPr>
           <w:tcW w:w="${width}" w:type="dxa"/>
           <w:vAlign w:val="center"/>
-          ${shd}
         </w:tcPr>
-        ${wP(text, { bold, center, size, color })}
+        ${wP(text, { bold, size })}
       </w:tc>`;
     }
 
-    function wTr(cells, { header = false, height = 280 } = {}) {
+    function wTr(cells, { header = false, height = 340 } = {}) {
       return `<w:tr>
         <w:trPr>
           <w:trHeight w:val="${height}" w:hRule="atLeast"/>
@@ -3015,30 +3011,15 @@
     function buildDocxTable(slice, colW) {
       const maxNames = Math.max(0, ...slice.map((c) => c?.names.length || 0));
       const borders = ["top", "left", "bottom", "right", "insideH", "insideV"]
-        .map((side) => `<w:${side} w:val="single" w:sz="8" w:space="0" w:color="C4C4C4"/>`)
+        .map((side) => `<w:${side} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`)
         .join("");
       const header = wTr(
-        slice.map((card) => wTc(card ? card.title : "", {
-          width: colW,
-          fill: "E8EDF2",
-          bold: true,
-          center: true,
-          size: 18,
-          color: "1F2937",
-        })).join(""),
-        { header: true, height: 360 }
+        slice.map((card) => wTc(card ? card.title : "", colW, { bold: true, size: 24 })).join(""),
+        { header: true, height: 400 }
       );
       const body = [];
       for (let n = 0; n < maxNames; n++) {
-        body.push(wTr(
-          slice.map((card) => wTc(card?.names[n] || "", {
-            width: colW,
-            fill: n % 2 ? "F7F8FA" : "FFFFFF",
-            size: 17,
-            color: "333333",
-          })).join(""),
-          { height: 300 }
-        ));
+        body.push(wTr(slice.map((card) => wTc(card?.names[n] || "", colW)).join("")));
       }
       return `<w:tbl>
         <w:tblPr>
@@ -3046,7 +3027,7 @@
           <w:tblLayout w:type="fixed"/>
           <w:tblBorders>${borders}</w:tblBorders>
           <w:tblCellMar>
-            <w:top w:w="60"/><w:left w:w="80"/><w:bottom w:w="60"/><w:right w:w="80"/>
+            <w:top w:w="80"/><w:left w:w="100"/><w:bottom w:w="80"/><w:right w:w="100"/>
           </w:tblCellMar>
         </w:tblPr>
         <w:tblGrid>${`<w:gridCol w:w="${colW}"/>`.repeat(slice.length)}</w:tblGrid>
@@ -3063,7 +3044,7 @@
         const slice = cards.slice(i, i + cols);
         while (slice.length < cols) slice.push(null);
         if (blocks.length) {
-          blocks.push(`<w:p><w:pPr><w:spacing w:before="200" w:after="40"/></w:pPr></w:p>`);
+          blocks.push(`<w:p><w:pPr><w:spacing w:before="280" w:after="40"/></w:pPr></w:p>`);
         }
         blocks.push(buildDocxTable(slice, colW));
       }
@@ -3132,13 +3113,13 @@
         while (slice.length < cols) slice.push(null);
         const maxNames = Math.max(0, ...slice.map((c) => c?.names.length || 0));
 
-        rowsXml.push(`<row r="${r}" ht="20" customHeight="1">${slice.map((card, c) =>
+        rowsXml.push(`<row r="${r}" ht="22" customHeight="1">${slice.map((card, c) =>
           xlsxInlineCell(`${colLetter(c)}${r}`, card ? card.title : "", 1)
         ).join("")}</row>`);
         r += 1;
 
         for (let n = 0; n < maxNames; n++) {
-          rowsXml.push(`<row r="${r}">${slice.map((card, c) =>
+          rowsXml.push(`<row r="${r}" ht="20" customHeight="1">${slice.map((card, c) =>
             xlsxInlineCell(`${colLetter(c)}${r}`, card?.names[n] || "", 2)
           ).join("")}</row>`);
           r += 1;
@@ -3153,7 +3134,7 @@
   <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
   <dimension ref="A1:${lastCol}${lastRow}"/>
   <sheetFormatPr defaultRowHeight="16"/>
-  <cols><col min="1" max="${cols}" width="28" customWidth="1"/></cols>
+  <cols><col min="1" max="${cols}" width="36" customWidth="1"/></cols>
   <sheetData>${rowsXml.join("")}</sheetData>
   <pageMargins left="0.4" right="0.4" top="0.4" bottom="0.4" header="0" footer="0"/>
   <pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="0"/>
@@ -3170,8 +3151,8 @@
       const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <fonts count="2">
-    <font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/></font>
-    <font><b/><sz val="12"/><color theme="1"/><name val="Calibri"/><family val="2"/></font>
+    <font><sz val="11"/><color rgb="FF000000"/><name val="Arial"/><family val="2"/></font>
+    <font><b/><sz val="12"/><color rgb="FF000000"/><name val="Arial"/><family val="2"/></font>
   </fonts>
   <fills count="2">
     <fill><patternFill patternType="none"/></fill>
@@ -3180,10 +3161,10 @@
   <borders count="2">
     <border><left/><right/><top/><bottom/><diagonal/></border>
     <border>
-      <left style="thin"><color rgb="FFBFBFBF"/></left>
-      <right style="thin"><color rgb="FFBFBFBF"/></right>
-      <top style="thin"><color rgb="FFBFBFBF"/></top>
-      <bottom style="thin"><color rgb="FFBFBFBF"/></bottom>
+      <left style="thin"><color rgb="FF000000"/></left>
+      <right style="thin"><color rgb="FF000000"/></right>
+      <top style="thin"><color rgb="FF000000"/></top>
+      <bottom style="thin"><color rgb="FF000000"/></bottom>
       <diagonal/>
     </border>
   </borders>
@@ -3193,7 +3174,7 @@
   <cellXfs count="3">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
     <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">
-      <alignment horizontal="center" vertical="center"/>
+      <alignment horizontal="left" vertical="center" wrapText="1"/>
     </xf>
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1">
       <alignment horizontal="left" vertical="center" wrapText="1"/>
