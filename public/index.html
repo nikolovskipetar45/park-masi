@@ -70,6 +70,10 @@
       background: #d1fae5;
       font-weight: 600;
     }
+    header button#docxBtn {
+      background: #dbeafe;
+      font-weight: 600;
+    }
     .layout {
       display: grid;
       grid-template-columns: 1fr minmax(280px, 340px);
@@ -1095,6 +1099,7 @@
       <button type="button" id="remainingBtn">Преостанати гости (0)</button>
       <button type="button" id="allGuestsBtn">Сите гости</button>
       <button type="button" id="printBtn">Печати A4</button>
+      <button type="button" id="docxBtn">DOCX</button>
     </div>
   </header>
 
@@ -2797,23 +2802,27 @@
         .replace(/"/g, "&quot;");
     }
 
-    function buildPrintHtml() {
+    function printCards() {
       const defs = [...TABLE_DEFS].sort((a, b) => tableSortKey(a) - tableSortKey(b));
       const cards = [];
       for (const def of defs) {
         const t = state.tables[def.id];
         if (!t?.guests?.length) continue;
-        const title = def.id === HEAD_ID ? "НМ" : def.label;
-        const names = t.guests
-          .map((g) => `<li>${escapeHtml(g.name)}</li>`)
-          .join("");
-        cards.push(`
+        cards.push({
+          title: def.id === HEAD_ID ? "НМ" : String(def.label),
+          names: t.guests.map((g) => String(g.name || "")),
+        });
+      }
+      return cards;
+    }
+
+    function buildPrintHtml() {
+      const cards = printCards().map((card) => `
           <article class="card">
-            <h2>${escapeHtml(title)}</h2>
-            <ul>${names}</ul>
+            <h2>${escapeHtml(card.title)}</h2>
+            <ul>${card.names.map((n) => `<li>${escapeHtml(n)}</li>`).join("")}</ul>
           </article>
         `);
-      }
 
       return `<!DOCTYPE html>
 <html lang="mk">
@@ -2890,6 +2899,173 @@
 </html>`;
     }
 
+    function escapeXml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function u8FromStr(s) {
+      return new TextEncoder().encode(s);
+    }
+
+    function crc32(u8) {
+      let c = 0xffffffff;
+      for (let i = 0; i < u8.length; i++) {
+        c ^= u8[i];
+        for (let k = 0; k < 8; k++) {
+          c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+        }
+      }
+      return (c ^ 0xffffffff) >>> 0;
+    }
+
+    function concatBytes(parts) {
+      const len = parts.reduce((sum, p) => sum + p.length, 0);
+      const out = new Uint8Array(len);
+      let o = 0;
+      for (const p of parts) {
+        out.set(p, o);
+        o += p.length;
+      }
+      return out;
+    }
+
+    function le16(n) {
+      return new Uint8Array([n & 255, (n >>> 8) & 255]);
+    }
+
+    function le32(n) {
+      return new Uint8Array([n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255]);
+    }
+
+    function zipStore(files) {
+      const locals = [];
+      const centrals = [];
+      let offset = 0;
+      for (const file of files) {
+        const name = u8FromStr(file.name);
+        const data = file.data;
+        const crc = crc32(data);
+        const local = concatBytes([
+          le32(0x04034b50), le16(20), le16(0), le16(0), le16(0), le16(0),
+          le32(crc), le32(data.length), le32(data.length),
+          le16(name.length), le16(0), name, data,
+        ]);
+        locals.push(local);
+        centrals.push(concatBytes([
+          le32(0x02014b50), le16(20), le16(20), le16(0), le16(0), le16(0), le16(0),
+          le32(crc), le32(data.length), le32(data.length),
+          le16(name.length), le16(0), le16(0), le16(0), le16(0),
+          le32(0), le32(offset), name,
+        ]));
+        offset += local.length;
+      }
+      const localAll = concatBytes(locals);
+      const centralAll = concatBytes(centrals);
+      return concatBytes([
+        localAll,
+        centralAll,
+        le32(0x06054b50), le16(0), le16(0),
+        le16(files.length), le16(files.length),
+        le32(centralAll.length), le32(localAll.length), le16(0),
+      ]);
+    }
+
+    function wP(text, { bold = false, center = false, size = 13 } = {}) {
+      const align = center ? `<w:jc w:val="center"/>` : "";
+      const rPr = `<w:rPr><w:sz w:val="${size}"/><w:szCs w:val="${size}"/>${bold ? "<w:b/>" : ""}</w:rPr>`;
+      return `<w:p><w:pPr>${align}<w:spacing w:after="20" w:line="220" w:lineRule="auto"/></w:pPr><w:r>${rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+    }
+
+    function buildDocxBytes() {
+      const cards = printCards();
+      const cols = 5;
+      const rows = [];
+      for (let i = 0; i < cards.length; i += cols) {
+        const slice = cards.slice(i, i + cols);
+        while (slice.length < cols) slice.push(null);
+        const cells = slice.map((card) => {
+          const inner = card
+            ? wP(card.title, { bold: true, center: true, size: 16 }) +
+              card.names.map((n) => wP(n, { size: 13 })).join("")
+            : wP("");
+          return `<w:tc>
+            <w:tcPr>
+              <w:tcW w:w="1872" w:type="dxa"/>
+              <w:vAlign w:val="top"/>
+              <w:tcMar>
+                <w:top w:w="40"/><w:left w:w="40"/><w:bottom w:w="40"/><w:right w:w="40"/>
+              </w:tcMar>
+            </w:tcPr>
+            ${inner}
+          </w:tc>`;
+        }).join("");
+        rows.push(`<w:tr>${cells}</w:tr>`);
+      }
+
+      const borders = ["top", "left", "bottom", "right", "insideH", "insideV"]
+        .map((side) => `<w:${side} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`)
+        .join("");
+
+      const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="9360" w:type="dxa"/>
+        <w:tblBorders>${borders}</w:tblBorders>
+        <w:tblCellMar>
+          <w:top w:w="40"/><w:left w:w="40"/><w:bottom w:w="40"/><w:right w:w="40"/>
+        </w:tblCellMar>
+      </w:tblPr>
+      <w:tblGrid>${"<w:gridCol w:w=\"1872\"/>".repeat(cols)}</w:tblGrid>
+      ${rows.join("")}
+    </w:tbl>
+    <w:sectPr>
+      <w:pgSz w:w="11906" w:h="16838"/>
+      <w:pgMar w:top="567" w:right="567" w:bottom="567" w:left="567" w:header="0" w:footer="0"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
+
+      const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`;
+
+      const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+      const docRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
+
+      return zipStore([
+        { name: "[Content_Types].xml", data: u8FromStr(contentTypes) },
+        { name: "_rels/.rels", data: u8FromStr(rels) },
+        { name: "word/document.xml", data: u8FromStr(documentXml) },
+        { name: "word/_rels/document.xml.rels", data: u8FromStr(docRels) },
+      ]);
+    }
+
+    function downloadDocx() {
+      const bytes = buildDocxBytes();
+      const blob = new Blob([bytes], {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "raspored-masi.docx";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
     document.getElementById("printBtn").addEventListener("click", () => {
       const html = buildPrintHtml();
       const w = window.open("", "_blank");
@@ -2902,6 +3078,7 @@
       w.document.close();
       w.focus();
     });
+    document.getElementById("docxBtn").addEventListener("click", downloadDocx);
 
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
