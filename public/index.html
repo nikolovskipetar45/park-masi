@@ -2878,6 +2878,8 @@
       border-collapse: collapse;
       table-layout: fixed;
       margin: 0 0 16pt;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     th, td {
       border: 0.6pt solid #000;
@@ -2979,33 +2981,52 @@
       ]);
     }
 
-    function wP(text, { bold = false, size = 22 } = {}) {
+    function wP(text, { bold = false, size = 22, keepNext = false } = {}) {
       const rPr = `<w:rPr>
         <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
         <w:sz w:val="${size}"/><w:szCs w:val="${size}"/>
         ${bold ? "<w:b/>" : ""}
       </w:rPr>`;
-      return `<w:p><w:pPr><w:jc w:val="left"/><w:spacing w:before="0" w:after="0" w:line="276" w:lineRule="auto"/></w:pPr><w:r>${rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+      const keep = keepNext ? "<w:keepNext/><w:keepLines/>" : "<w:keepLines/>";
+      return `<w:p><w:pPr>${keep}<w:jc w:val="left"/><w:spacing w:before="0" w:after="0" w:line="276" w:lineRule="auto"/></w:pPr><w:r>${rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
     }
 
-    function wTc(text, width, { bold = false, size = 22 } = {}) {
+    function wTc(text, width, { bold = false, size = 22, keepNext = false } = {}) {
       return `<w:tc>
         <w:tcPr>
           <w:tcW w:w="${width}" w:type="dxa"/>
           <w:vAlign w:val="center"/>
         </w:tcPr>
-        ${wP(text, { bold, size })}
+        ${wP(text, { bold, size, keepNext })}
       </w:tc>`;
     }
 
-    function wTr(cells, { header = false, height = 340 } = {}) {
+    function wTr(cells, { height = 340 } = {}) {
       return `<w:tr>
         <w:trPr>
+          <w:cantSplit/>
           <w:trHeight w:val="${height}" w:hRule="atLeast"/>
-          ${header ? "<w:tblHeader/>" : ""}
         </w:trPr>
         ${cells}
       </w:tr>`;
+    }
+
+    function wrapDocxKeepTogether(inner, width) {
+      return `<w:tbl>
+        <w:tblPr>
+          <w:tblW w:w="${width}" w:type="dxa"/>
+          <w:tblLayout w:type="fixed"/>
+        </w:tblPr>
+        <w:tblGrid><w:gridCol w:w="${width}"/></w:tblGrid>
+        <w:tr>
+          <w:trPr><w:cantSplit/></w:trPr>
+          <w:tc>
+            <w:tcPr><w:tcW w:w="${width}" w:type="dxa"/></w:tcPr>
+            ${inner}
+            <w:p/>
+          </w:tc>
+        </w:tr>
+      </w:tbl>`;
     }
 
     function buildDocxTable(slice, colW) {
@@ -3014,14 +3035,20 @@
         .map((side) => `<w:${side} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`)
         .join("");
       const header = wTr(
-        slice.map((card) => wTc(card ? card.title : "", colW, { bold: true, size: 24 })).join(""),
-        { header: true, height: 400 }
+        slice.map((card) => wTc(card ? card.title : "", colW, {
+          bold: true,
+          size: 24,
+          keepNext: maxNames > 0,
+        })).join(""),
+        { height: 400 }
       );
       const body = [];
       for (let n = 0; n < maxNames; n++) {
-        body.push(wTr(slice.map((card) => wTc(card?.names[n] || "", colW)).join("")));
+        body.push(wTr(slice.map((card) => wTc(card?.names[n] || "", colW, {
+          keepNext: n < maxNames - 1,
+        })).join("")));
       }
-      return `<w:tbl>
+      const inner = `<w:tbl>
         <w:tblPr>
           <w:tblW w:w="${colW * slice.length}" w:type="dxa"/>
           <w:tblLayout w:type="fixed"/>
@@ -3033,6 +3060,7 @@
         <w:tblGrid>${`<w:gridCol w:w="${colW}"/>`.repeat(slice.length)}</w:tblGrid>
         ${header}${body.join("")}
       </w:tbl>`;
+      return wrapDocxKeepTogether(inner, colW * slice.length);
     }
 
     function buildDocxBytes() {
@@ -3107,11 +3135,23 @@
       const cards = printCards();
       const cols = 3;
       const rowsXml = [];
+      const pageBreaks = [];
       let r = 1;
+      let pageUsed = 0;
+      const pageRows = 38;
       for (let i = 0; i < cards.length; i += cols) {
         const slice = cards.slice(i, i + cols);
         while (slice.length < cols) slice.push(null);
         const maxNames = Math.max(0, ...slice.map((c) => c?.names.length || 0));
+        const blockH = 1 + maxNames;
+
+        if (pageUsed > 0 && pageUsed + 1 + blockH > pageRows) {
+          pageBreaks.push(r);
+          pageUsed = 0;
+        } else if (i > 0) {
+          r += 1;
+          pageUsed += 1;
+        }
 
         rowsXml.push(`<row r="${r}" ht="22" customHeight="1">${slice.map((card, c) =>
           xlsxInlineCell(`${colLetter(c)}${r}`, card ? card.title : "", 1)
@@ -3124,11 +3164,16 @@
           ).join("")}</row>`);
           r += 1;
         }
-        r += 1;
+        pageUsed += blockH;
       }
 
       const lastCol = colLetter(cols - 1);
       const lastRow = Math.max(1, r - 1);
+      const breaksXml = pageBreaks.length
+        ? `<rowBreaks count="${pageBreaks.length}" manualBreakCount="${pageBreaks.length}">${
+            pageBreaks.map((id) => `<brk id="${id}" man="1" max="16383"/>`).join("")
+          }</rowBreaks>`
+        : "";
       const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
@@ -3136,6 +3181,7 @@
   <sheetFormatPr defaultRowHeight="16"/>
   <cols><col min="1" max="${cols}" width="36" customWidth="1"/></cols>
   <sheetData>${rowsXml.join("")}</sheetData>
+  ${breaksXml}
   <pageMargins left="0.4" right="0.4" top="0.4" bottom="0.4" header="0" footer="0"/>
   <pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="0"/>
 </worksheet>`;
