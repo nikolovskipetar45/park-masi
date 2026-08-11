@@ -2800,32 +2800,20 @@
     function buildPrintHtml() {
       const defs = [...TABLE_DEFS].sort((a, b) => tableSortKey(a) - tableSortKey(b));
       const cards = [];
-      let seated = 0;
       for (const def of defs) {
         const t = state.tables[def.id];
         if (!t?.guests?.length) continue;
-        seated += t.guests.length;
-        const owner = ownerFor(def.id);
-        const title = def.id === HEAD_ID ? def.label : `Маса ${def.label}`;
+        const title = def.id === HEAD_ID ? "НМ" : def.label;
         const names = t.guests
-          .map((g, i) => `<li>${i + 1}. ${escapeHtml(g.name)}</li>`)
+          .map((g) => `<li>${escapeHtml(g.name)}</li>`)
           .join("");
         cards.push(`
           <article class="card">
-            <h2>${escapeHtml(title)} <span>${t.guests.length}/${t.capacity}</span></h2>
-            <p class="group">${escapeHtml(owner ? owner.label : "")}</p>
-            <ol>${names}</ol>
+            <h2>${escapeHtml(title)}</h2>
+            <ul>${names}</ul>
           </article>
         `);
       }
-
-      const free = allGuests.filter((g) => !seatedIds().has(g.id));
-      const freeBlock = free.length
-        ? `<section class="unseated">
-            <h2>Преостанати гости (${free.length})</h2>
-            <ol>${free.map((g) => `<li>${escapeHtml(g.name)}</li>`).join("")}</ol>
-          </section>`
-        : "";
 
       return `<!DOCTYPE html>
 <html lang="mk">
@@ -2833,7 +2821,7 @@
   <meta charset="UTF-8" />
   <title>Распоред по маси</title>
   <style>
-    @page { size: A4; margin: 12mm; }
+    @page { size: A4; margin: 8mm; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
@@ -2859,57 +2847,30 @@
       font-weight: 700;
       cursor: pointer;
     }
-    .sheet { padding: 14px 16px 24px; }
-    h1 {
-      margin: 0 0 4px;
-      font-size: 16pt;
-    }
-    .meta {
-      margin: 0 0 12px;
-      font-size: 9pt;
-      color: #444;
-    }
+    .sheet { padding: 8px; }
     .grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
     }
     .card {
       border: 1px solid #222;
-      border-radius: 4px;
-      padding: 7px 8px;
+      border-radius: 3px;
+      padding: 4px 5px;
       break-inside: avoid;
       page-break-inside: avoid;
     }
     .card h2 {
-      margin: 0;
-      font-size: 10pt;
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .card h2 span { font-weight: 600; }
-    .group {
-      margin: 2px 0 5px;
+      margin: 0 0 3px;
       font-size: 8pt;
-      color: #444;
+      text-align: center;
     }
-    ol {
+    ul {
       margin: 0;
       padding: 0;
       list-style: none;
-      font-size: 8.5pt;
-      line-height: 1.28;
-    }
-    .unseated {
-      margin-top: 10px;
-      border: 1px solid #222;
-      padding: 8px;
-      break-inside: avoid;
-    }
-    .unseated h2 {
-      margin: 0 0 6px;
-      font-size: 10pt;
+      font-size: 6.5pt;
+      line-height: 1.22;
     }
     @media print {
       .toolbar { display: none; }
@@ -2923,10 +2884,7 @@
     <button type="button" onclick="window.print()">Печати</button>
   </div>
   <div class="sheet">
-    <h1>Распоред по маси</h1>
-    <p class="meta">На маси: ${seated} · Преостанати: ${free.length} · ${escapeHtml(new Date().toLocaleDateString("mk-MK"))}</p>
     <div class="grid">${cards.join("")}</div>
-    ${freeBlock}
   </div>
 </body>
 </html>`;
