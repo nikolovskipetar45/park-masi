@@ -2807,18 +2807,36 @@
         .replace(/"/g, "&quot;");
     }
 
-    function printCards() {
+    const PRINT_GROUPS = [
+      { id: "ane", title: "Гости на млади" },
+      { id: "toni", title: "Гости на родители на младоженец" },
+      { id: "najdan", title: "Гости на родители на невеста" },
+    ];
+
+    function guestPrintOwner(guest, tableId) {
+      return guest?.owner || state.tables[tableId]?.owner || defaultOwnerFor(tableId) || "ane";
+    }
+
+    function printCardsForOwner(ownerId) {
       const defs = [...TABLE_DEFS].sort((a, b) => tableSortKey(a) - tableSortKey(b));
       const cards = [];
       for (const def of defs) {
+        if (def.id === HEAD_ID) continue;
         const t = state.tables[def.id];
-        if (def.id === HEAD_ID || !t?.guests?.length) continue;
-        cards.push({
-          title: `MASA BR. ${def.label}`,
-          names: t.guests.map((g) => String(g.name || "")),
-        });
+        const names = (t?.guests || [])
+          .filter((g) => guestPrintOwner(g, def.id) === ownerId)
+          .map((g) => String(g.name || ""))
+          .filter(Boolean);
+        if (!names.length) continue;
+        cards.push({ title: `MASA BR. ${def.label}`, names });
       }
       return cards;
+    }
+
+    function printSections() {
+      return PRINT_GROUPS
+        .map((group) => ({ title: group.title, cards: printCardsForOwner(group.id) }))
+        .filter((section) => section.cards.length);
     }
 
     function chunkCards(cards, cols) {
@@ -2832,13 +2850,16 @@
     }
 
     function buildPrintHtml() {
-      const blocks = chunkCards(printCards(), 3).map((slice) => `
-        <div class="row">${slice.map((card) => card ? `
-          <div class="col">
-            <h2>${escapeHtml(card.title)}</h2>
-            ${card.names.map((n) => `<div>• ${escapeHtml(n)}</div>`).join("")}
-          </div>` : `<div class="col"></div>`).join("")}
-        </div>`).join("");
+      const sections = printSections().map((section, i) => {
+        const rows = chunkCards(section.cards, 3).map((slice) => `
+          <div class="row">${slice.map((card) => card ? `
+            <div class="col">
+              <h2>${escapeHtml(card.title)}</h2>
+              ${card.names.map((n) => `<div>• ${escapeHtml(n)}</div>`).join("")}
+            </div>` : `<div class="col"></div>`).join("")}
+          </div>`).join("");
+        return `<section class="group${i ? " break" : ""}"><h1>${escapeHtml(section.title)}</h1>${rows}</section>`;
+      }).join("");
 
       return `<!DOCTYPE html>
 <html lang="mk">
@@ -2871,6 +2892,11 @@
       cursor: pointer;
     }
     .sheet { padding: 6px; }
+    .group.break { page-break-before: always; break-before: page; }
+    .group h1 {
+      margin: 0 0 8pt;
+      font-size: 13pt;
+    }
     .row {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
@@ -2898,7 +2924,7 @@
     <span>Распоред по маси</span>
     <button type="button" onclick="window.print()">Печати</button>
   </div>
-  <div class="sheet">${blocks}</div>
+  <div class="sheet">${sections}</div>
 </body>
 </html>`;
     }
@@ -2978,14 +3004,15 @@
       ]);
     }
 
-    function wP(text, { bold = false, size = 19, keepNext = false } = {}) {
+    function wP(text, { bold = false, size = 19, keepNext = false, pageBreak = false, after = 0 } = {}) {
       const rPr = `<w:rPr>
         <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
         <w:sz w:val="${size}"/><w:szCs w:val="${size}"/>
         ${bold ? "<w:b/>" : ""}
       </w:rPr>`;
       const keep = keepNext ? "<w:keepNext/><w:keepLines/>" : "<w:keepLines/>";
-      return `<w:p><w:pPr>${keep}<w:jc w:val="left"/><w:spacing w:before="0" w:after="0" w:line="220" w:lineRule="auto"/></w:pPr><w:r>${rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+      const brk = pageBreak ? "<w:pageBreakBefore/>" : "";
+      return `<w:p><w:pPr>${brk}${keep}<w:jc w:val="left"/><w:spacing w:before="0" w:after="${after}" w:line="220" w:lineRule="auto"/></w:pPr><w:r>${rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
     }
 
     function buildDocxTable(slice, colW) {
@@ -3024,18 +3051,24 @@
     }
 
     function buildDocxBytes() {
-      const cards = printCards();
+      const sections = printSections();
       const cols = 3;
       const colW = 3120;
       const blocks = [];
-      for (let i = 0; i < cards.length; i += cols) {
-        const slice = cards.slice(i, i + cols);
-        while (slice.length < cols) slice.push(null);
-        if (blocks.length) {
-          blocks.push(`<w:p><w:pPr><w:spacing w:before="80" w:after="0" w:line="40" w:lineRule="exact"/></w:pPr></w:p>`);
-        }
-        blocks.push(buildDocxTable(slice, colW));
-      }
+      sections.forEach((section, sIdx) => {
+        blocks.push(wP(section.title, {
+          bold: true,
+          size: 26,
+          pageBreak: sIdx > 0,
+          after: 120,
+        }));
+        chunkCards(section.cards, cols).forEach((slice, i) => {
+          if (i) {
+            blocks.push(`<w:p><w:pPr><w:spacing w:before="80" w:after="0" w:line="40" w:lineRule="exact"/></w:pPr></w:p>`);
+          }
+          blocks.push(buildDocxTable(slice, colW));
+        });
+      });
 
       const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -3092,40 +3125,49 @@
     }
 
     function buildXlsxBytes() {
-      const cards = printCards();
+      const sections = printSections();
       const cols = 3;
       const rowsXml = [];
       const pageBreaks = [];
+      const merges = [];
       let r = 1;
       let pageUsed = 0;
       const pageRows = 38;
-      for (let i = 0; i < cards.length; i += cols) {
-        const slice = cards.slice(i, i + cols);
-        while (slice.length < cols) slice.push(null);
-        const maxNames = Math.max(0, ...slice.map((c) => c?.names.length || 0));
-        const blockH = 1 + maxNames;
-
-        if (pageUsed > 0 && pageUsed + 1 + blockH > pageRows) {
+      sections.forEach((section, sIdx) => {
+        if (sIdx > 0) {
           pageBreaks.push(r);
           pageUsed = 0;
-        } else if (i > 0) {
-          r += 1;
-          pageUsed += 1;
         }
-
-        rowsXml.push(`<row r="${r}" ht="16" customHeight="1">${slice.map((card, c) =>
-          xlsxInlineCell(`${colLetter(c)}${r}`, card ? card.title : "", 1)
-        ).join("")}</row>`);
+        merges.push(`A${r}:C${r}`);
+        rowsXml.push(`<row r="${r}" ht="20" customHeight="1">${xlsxInlineCell(`A${r}`, section.title, 1)}</row>`);
         r += 1;
+        pageUsed += 2;
 
-        for (let n = 0; n < maxNames; n++) {
-          rowsXml.push(`<row r="${r}" ht="14" customHeight="1">${slice.map((card, c) =>
-            xlsxInlineCell(`${colLetter(c)}${r}`, card?.names[n] ? `• ${card.names[n]}` : "", 2)
+        chunkCards(section.cards, cols).forEach((slice, i) => {
+          const maxNames = Math.max(0, ...slice.map((c) => c?.names.length || 0));
+          const blockH = 1 + maxNames;
+          if (pageUsed > 0 && pageUsed + 1 + blockH > pageRows) {
+            pageBreaks.push(r);
+            pageUsed = 0;
+          } else if (i > 0) {
+            r += 1;
+            pageUsed += 1;
+          }
+
+          rowsXml.push(`<row r="${r}" ht="16" customHeight="1">${slice.map((card, c) =>
+            xlsxInlineCell(`${colLetter(c)}${r}`, card ? card.title : "", 1)
           ).join("")}</row>`);
           r += 1;
-        }
-        pageUsed += blockH;
-      }
+
+          for (let n = 0; n < maxNames; n++) {
+            rowsXml.push(`<row r="${r}" ht="14" customHeight="1">${slice.map((card, c) =>
+              xlsxInlineCell(`${colLetter(c)}${r}`, card?.names[n] ? `• ${card.names[n]}` : "", 2)
+            ).join("")}</row>`);
+            r += 1;
+          }
+          pageUsed += blockH;
+        });
+      });
 
       const lastCol = colLetter(cols - 1);
       const lastRow = Math.max(1, r - 1);
@@ -3134,6 +3176,9 @@
             pageBreaks.map((id) => `<brk id="${id}" man="1" max="16383"/>`).join("")
           }</rowBreaks>`
         : "";
+      const mergesXml = merges.length
+        ? `<mergeCells count="${merges.length}">${merges.map((ref) => `<mergeCell ref="${ref}"/>`).join("")}</mergeCells>`
+        : "";
       const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
@@ -3141,6 +3186,7 @@
   <sheetFormatPr defaultRowHeight="16"/>
   <cols><col min="1" max="${cols}" width="36" customWidth="1"/></cols>
   <sheetData>${rowsXml.join("")}</sheetData>
+  ${mergesXml}
   ${breaksXml}
   <pageMargins left="0.4" right="0.4" top="0.4" bottom="0.4" header="0" footer="0"/>
   <pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="0"/>
