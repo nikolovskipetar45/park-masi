@@ -66,6 +66,10 @@
       background: #e0e7ff;
       font-weight: 600;
     }
+    header button#printBtn {
+      background: #d1fae5;
+      font-weight: 600;
+    }
     .layout {
       display: grid;
       grid-template-columns: 1fr minmax(280px, 340px);
@@ -1090,6 +1094,7 @@
     <div class="header-actions">
       <button type="button" id="remainingBtn">Преостанати гости (0)</button>
       <button type="button" id="allGuestsBtn">Сите гости</button>
+      <button type="button" id="printBtn">Печати A4</button>
     </div>
   </header>
 
@@ -2782,6 +2787,162 @@
       if (guestModal.classList.contains("open")) renderPicker();
       if (remainingModal.classList.contains("open")) renderRemainingList();
       showToast(`Додаден: ${name}`);
+    });
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function buildPrintHtml() {
+      const defs = [...TABLE_DEFS].sort((a, b) => tableSortKey(a) - tableSortKey(b));
+      const cards = [];
+      let seated = 0;
+      for (const def of defs) {
+        const t = state.tables[def.id];
+        if (!t?.guests?.length) continue;
+        seated += t.guests.length;
+        const owner = ownerFor(def.id);
+        const title = def.id === HEAD_ID ? def.label : `Маса ${def.label}`;
+        const names = t.guests
+          .map((g, i) => `<li>${i + 1}. ${escapeHtml(g.name)}</li>`)
+          .join("");
+        cards.push(`
+          <article class="card">
+            <h2>${escapeHtml(title)} <span>${t.guests.length}/${t.capacity}</span></h2>
+            <p class="group">${escapeHtml(owner ? owner.label : "")}</p>
+            <ol>${names}</ol>
+          </article>
+        `);
+      }
+
+      const free = allGuests.filter((g) => !seatedIds().has(g.id));
+      const freeBlock = free.length
+        ? `<section class="unseated">
+            <h2>Преостанати гости (${free.length})</h2>
+            <ol>${free.map((g) => `<li>${escapeHtml(g.name)}</li>`).join("")}</ol>
+          </section>`
+        : "";
+
+      return `<!DOCTYPE html>
+<html lang="mk">
+<head>
+  <meta charset="UTF-8" />
+  <title>Распоред по маси</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #111;
+      background: #fff;
+    }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: #111;
+      color: #fff;
+    }
+    .toolbar button {
+      background: #fff;
+      color: #111;
+      border: 0;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .sheet { padding: 14px 16px 24px; }
+    h1 {
+      margin: 0 0 4px;
+      font-size: 16pt;
+    }
+    .meta {
+      margin: 0 0 12px;
+      font-size: 9pt;
+      color: #444;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .card {
+      border: 1px solid #222;
+      border-radius: 4px;
+      padding: 7px 8px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .card h2 {
+      margin: 0;
+      font-size: 10pt;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .card h2 span { font-weight: 600; }
+    .group {
+      margin: 2px 0 5px;
+      font-size: 8pt;
+      color: #444;
+    }
+    ol {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font-size: 8.5pt;
+      line-height: 1.28;
+    }
+    .unseated {
+      margin-top: 10px;
+      border: 1px solid #222;
+      padding: 8px;
+      break-inside: avoid;
+    }
+    .unseated h2 {
+      margin: 0 0 6px;
+      font-size: 10pt;
+    }
+    @media print {
+      .toolbar { display: none; }
+      .sheet { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <span>A4 распоред по маси</span>
+    <button type="button" onclick="window.print()">Печати</button>
+  </div>
+  <div class="sheet">
+    <h1>Распоред по маси</h1>
+    <p class="meta">На маси: ${seated} · Преостанати: ${free.length} · ${escapeHtml(new Date().toLocaleDateString("mk-MK"))}</p>
+    <div class="grid">${cards.join("")}</div>
+    ${freeBlock}
+  </div>
+</body>
+</html>`;
+    }
+
+    document.getElementById("printBtn").addEventListener("click", () => {
+      const html = buildPrintHtml();
+      const w = window.open("", "_blank");
+      if (!w) {
+        showToast("Дозволи pop-up за печатење.");
+        return;
+      }
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      w.focus();
     });
 
     document.addEventListener("keydown", (e) => {
