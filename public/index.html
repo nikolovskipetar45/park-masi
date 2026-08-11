@@ -74,6 +74,10 @@
       background: #dbeafe;
       font-weight: 600;
     }
+    header button#xlsxBtn {
+      background: #dcfce7;
+      font-weight: 600;
+    }
     .layout {
       display: grid;
       grid-template-columns: 1fr minmax(280px, 340px);
@@ -1100,6 +1104,7 @@
       <button type="button" id="allGuestsBtn">Сите гости</button>
       <button type="button" id="printBtn">Печати A4</button>
       <button type="button" id="docxBtn">DOCX</button>
+      <button type="button" id="xlsxBtn">Excel</button>
     </div>
   </header>
 
@@ -2982,22 +2987,23 @@
 
     function buildDocxBytes() {
       const cards = printCards();
-      const cols = 5;
+      const cols = 4;
+      const colW = 2340;
       const rows = [];
       for (let i = 0; i < cards.length; i += cols) {
         const slice = cards.slice(i, i + cols);
         while (slice.length < cols) slice.push(null);
         const cells = slice.map((card) => {
           const inner = card
-            ? wP(card.title, { bold: true, center: true, size: 16 }) +
-              card.names.map((n) => wP(n, { size: 13 })).join("")
+            ? wP(card.title, { bold: true, center: true, size: 18 }) +
+              card.names.map((n) => wP(n, { size: 15 })).join("")
             : wP("");
           return `<w:tc>
             <w:tcPr>
-              <w:tcW w:w="1872" w:type="dxa"/>
+              <w:tcW w:w="${colW}" w:type="dxa"/>
               <w:vAlign w:val="top"/>
               <w:tcMar>
-                <w:top w:w="40"/><w:left w:w="40"/><w:bottom w:w="40"/><w:right w:w="40"/>
+                <w:top w:w="60"/><w:left w:w="70"/><w:bottom w:w="60"/><w:right w:w="70"/>
               </w:tcMar>
             </w:tcPr>
             ${inner}
@@ -3007,7 +3013,7 @@
       }
 
       const borders = ["top", "left", "bottom", "right", "insideH", "insideV"]
-        .map((side) => `<w:${side} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`)
+        .map((side) => `<w:${side} w:val="single" w:sz="6" w:space="0" w:color="BFBFBF"/>`)
         .join("");
 
       const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -3018,10 +3024,10 @@
         <w:tblW w:w="9360" w:type="dxa"/>
         <w:tblBorders>${borders}</w:tblBorders>
         <w:tblCellMar>
-          <w:top w:w="40"/><w:left w:w="40"/><w:bottom w:w="40"/><w:right w:w="40"/>
+          <w:top w:w="60"/><w:left w:w="70"/><w:bottom w:w="60"/><w:right w:w="70"/>
         </w:tblCellMar>
       </w:tblPr>
-      <w:tblGrid>${"<w:gridCol w:w=\"1872\"/>".repeat(cols)}</w:tblGrid>
+      <w:tblGrid>${`<w:gridCol w:w="${colW}"/>`.repeat(cols)}</w:tblGrid>
       ${rows.join("")}
     </w:tbl>
     <w:sectPr>
@@ -3066,6 +3072,138 @@
       URL.revokeObjectURL(a.href);
     }
 
+    function colLetter(i) {
+      return String.fromCharCode(65 + i);
+    }
+
+    function xlsxInlineCell(ref, text, style) {
+      return `<c r="${ref}" t="inlineStr" s="${style}"><is><t xml:space="preserve">${escapeXml(text)}</t></is></c>`;
+    }
+
+    function buildXlsxBytes() {
+      const cards = printCards();
+      const cols = 4;
+      const rowsXml = [];
+      let r = 1;
+      for (let i = 0; i < cards.length; i += cols) {
+        const slice = cards.slice(i, i + cols);
+        while (slice.length < cols) slice.push(null);
+        const maxNames = Math.max(0, ...slice.map((c) => c?.names.length || 0));
+
+        rowsXml.push(`<row r="${r}" ht="20" customHeight="1">${slice.map((card, c) =>
+          xlsxInlineCell(`${colLetter(c)}${r}`, card ? card.title : "", 1)
+        ).join("")}</row>`);
+        r += 1;
+
+        for (let n = 0; n < maxNames; n++) {
+          rowsXml.push(`<row r="${r}">${slice.map((card, c) =>
+            xlsxInlineCell(`${colLetter(c)}${r}`, card?.names[n] || "", 2)
+          ).join("")}</row>`);
+          r += 1;
+        }
+        r += 1;
+      }
+
+      const lastCol = colLetter(cols - 1);
+      const lastRow = Math.max(1, r - 1);
+      const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
+  <dimension ref="A1:${lastCol}${lastRow}"/>
+  <sheetFormatPr defaultRowHeight="16"/>
+  <cols><col min="1" max="${cols}" width="28" customWidth="1"/></cols>
+  <sheetData>${rowsXml.join("")}</sheetData>
+  <pageMargins left="0.4" right="0.4" top="0.4" bottom="0.4" header="0" footer="0"/>
+  <pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="0"/>
+</worksheet>`;
+
+      const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Распоред" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>`;
+
+      const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="2">
+    <font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/></font>
+    <font><b/><sz val="12"/><color theme="1"/><name val="Calibri"/><family val="2"/></font>
+  </fonts>
+  <fills count="2">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+  </fills>
+  <borders count="2">
+    <border><left/><right/><top/><bottom/><diagonal/></border>
+    <border>
+      <left style="thin"><color rgb="FFBFBFBF"/></left>
+      <right style="thin"><color rgb="FFBFBFBF"/></right>
+      <top style="thin"><color rgb="FFBFBFBF"/></top>
+      <bottom style="thin"><color rgb="FFBFBFBF"/></bottom>
+      <diagonal/>
+    </border>
+  </borders>
+  <cellStyleXfs count="1">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
+  </cellStyleXfs>
+  <cellXfs count="3">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">
+      <alignment horizontal="center" vertical="center"/>
+    </xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1">
+      <alignment horizontal="left" vertical="center" wrapText="1"/>
+    </xf>
+  </cellXfs>
+  <cellStyles count="1">
+    <cellStyle name="Normal" xfId="0" builtinId="0"/>
+  </cellStyles>
+</styleSheet>`;
+
+      const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`;
+
+      const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`;
+
+      const workbookRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+
+      return zipStore([
+        { name: "[Content_Types].xml", data: u8FromStr(contentTypes) },
+        { name: "_rels/.rels", data: u8FromStr(rels) },
+        { name: "xl/workbook.xml", data: u8FromStr(workbook) },
+        { name: "xl/_rels/workbook.xml.rels", data: u8FromStr(workbookRels) },
+        { name: "xl/worksheets/sheet1.xml", data: u8FromStr(sheet) },
+        { name: "xl/styles.xml", data: u8FromStr(styles) },
+      ]);
+    }
+
+    function downloadXlsx() {
+      const bytes = buildXlsxBytes();
+      const blob = new Blob([bytes], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "raspored-masi.xlsx";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
     document.getElementById("printBtn").addEventListener("click", () => {
       const html = buildPrintHtml();
       const w = window.open("", "_blank");
@@ -3079,6 +3217,7 @@
       w.focus();
     });
     document.getElementById("docxBtn").addEventListener("click", downloadDocx);
+    document.getElementById("xlsxBtn").addEventListener("click", downloadXlsx);
 
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
