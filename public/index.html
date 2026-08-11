@@ -2812,9 +2812,9 @@
       const cards = [];
       for (const def of defs) {
         const t = state.tables[def.id];
-        if (!t?.guests?.length) continue;
+        if (def.id === HEAD_ID || !t?.guests?.length) continue;
         cards.push({
-          title: def.id === HEAD_ID ? "NEVESTINSKA MASA" : `MASA BR. ${def.label}`,
+          title: `MASA BR. ${def.label}`,
           names: t.guests.map((g) => String(g.name || "")),
         });
       }
