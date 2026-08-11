@@ -2814,7 +2814,7 @@
         const t = state.tables[def.id];
         if (!t?.guests?.length) continue;
         cards.push({
-          title: def.id === HEAD_ID ? "НМ" : String(def.label),
+          title: def.id === HEAD_ID ? "NEVESTINSKA MASA" : `MASA BR. ${def.label}`,
           names: t.guests.map((g) => String(g.name || "")),
         });
       }
@@ -2979,57 +2979,99 @@
       ]);
     }
 
-    function wP(text, { bold = false, center = false, size = 13 } = {}) {
-      const align = center ? `<w:jc w:val="center"/>` : "";
-      const rPr = `<w:rPr><w:sz w:val="${size}"/><w:szCs w:val="${size}"/>${bold ? "<w:b/>" : ""}</w:rPr>`;
-      return `<w:p><w:pPr>${align}<w:spacing w:after="20" w:line="220" w:lineRule="auto"/></w:pPr><w:r>${rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+    function wP(text, { bold = false, center = false, size = 18, color = "222222" } = {}) {
+      const align = center ? `<w:jc w:val="center"/>` : `<w:jc w:val="left"/>`;
+      const rPr = `<w:rPr>
+        <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>
+        <w:sz w:val="${size}"/><w:szCs w:val="${size}"/>
+        <w:color w:val="${color}"/>
+        ${bold ? "<w:b/>" : ""}
+      </w:rPr>`;
+      return `<w:p><w:pPr>${align}<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r>${rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+    }
+
+    function wTc(text, { width, fill = "", bold = false, center = false, size = 18, color = "222222" } = {}) {
+      const shd = fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : "";
+      return `<w:tc>
+        <w:tcPr>
+          <w:tcW w:w="${width}" w:type="dxa"/>
+          <w:vAlign w:val="center"/>
+          ${shd}
+        </w:tcPr>
+        ${wP(text, { bold, center, size, color })}
+      </w:tc>`;
+    }
+
+    function wTr(cells, { header = false, height = 280 } = {}) {
+      return `<w:tr>
+        <w:trPr>
+          <w:trHeight w:val="${height}" w:hRule="atLeast"/>
+          ${header ? "<w:tblHeader/>" : ""}
+        </w:trPr>
+        ${cells}
+      </w:tr>`;
+    }
+
+    function buildDocxTable(slice, colW) {
+      const maxNames = Math.max(0, ...slice.map((c) => c?.names.length || 0));
+      const borders = ["top", "left", "bottom", "right", "insideH", "insideV"]
+        .map((side) => `<w:${side} w:val="single" w:sz="8" w:space="0" w:color="C4C4C4"/>`)
+        .join("");
+      const header = wTr(
+        slice.map((card) => wTc(card ? card.title : "", {
+          width: colW,
+          fill: "E8EDF2",
+          bold: true,
+          center: true,
+          size: 18,
+          color: "1F2937",
+        })).join(""),
+        { header: true, height: 360 }
+      );
+      const body = [];
+      for (let n = 0; n < maxNames; n++) {
+        body.push(wTr(
+          slice.map((card) => wTc(card?.names[n] || "", {
+            width: colW,
+            fill: n % 2 ? "F7F8FA" : "FFFFFF",
+            size: 17,
+            color: "333333",
+          })).join(""),
+          { height: 300 }
+        ));
+      }
+      return `<w:tbl>
+        <w:tblPr>
+          <w:tblW w:w="${colW * slice.length}" w:type="dxa"/>
+          <w:tblLayout w:type="fixed"/>
+          <w:tblBorders>${borders}</w:tblBorders>
+          <w:tblCellMar>
+            <w:top w:w="60"/><w:left w:w="80"/><w:bottom w:w="60"/><w:right w:w="80"/>
+          </w:tblCellMar>
+        </w:tblPr>
+        <w:tblGrid>${`<w:gridCol w:w="${colW}"/>`.repeat(slice.length)}</w:tblGrid>
+        ${header}${body.join("")}
+      </w:tbl>`;
     }
 
     function buildDocxBytes() {
       const cards = printCards();
-      const cols = 4;
-      const colW = 2340;
-      const rows = [];
+      const cols = 3;
+      const colW = 3120;
+      const blocks = [];
       for (let i = 0; i < cards.length; i += cols) {
         const slice = cards.slice(i, i + cols);
         while (slice.length < cols) slice.push(null);
-        const cells = slice.map((card) => {
-          const inner = card
-            ? wP(card.title, { bold: true, center: true, size: 18 }) +
-              card.names.map((n) => wP(n, { size: 15 })).join("")
-            : wP("");
-          return `<w:tc>
-            <w:tcPr>
-              <w:tcW w:w="${colW}" w:type="dxa"/>
-              <w:vAlign w:val="top"/>
-              <w:tcMar>
-                <w:top w:w="60"/><w:left w:w="70"/><w:bottom w:w="60"/><w:right w:w="70"/>
-              </w:tcMar>
-            </w:tcPr>
-            ${inner}
-          </w:tc>`;
-        }).join("");
-        rows.push(`<w:tr>${cells}</w:tr>`);
+        if (blocks.length) {
+          blocks.push(`<w:p><w:pPr><w:spacing w:before="200" w:after="40"/></w:pPr></w:p>`);
+        }
+        blocks.push(buildDocxTable(slice, colW));
       }
-
-      const borders = ["top", "left", "bottom", "right", "insideH", "insideV"]
-        .map((side) => `<w:${side} w:val="single" w:sz="6" w:space="0" w:color="BFBFBF"/>`)
-        .join("");
 
       const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
-    <w:tbl>
-      <w:tblPr>
-        <w:tblW w:w="9360" w:type="dxa"/>
-        <w:tblBorders>${borders}</w:tblBorders>
-        <w:tblCellMar>
-          <w:top w:w="60"/><w:left w:w="70"/><w:bottom w:w="60"/><w:right w:w="70"/>
-        </w:tblCellMar>
-      </w:tblPr>
-      <w:tblGrid>${`<w:gridCol w:w="${colW}"/>`.repeat(cols)}</w:tblGrid>
-      ${rows.join("")}
-    </w:tbl>
+    ${blocks.join("") || wP("")}
     <w:sectPr>
       <w:pgSz w:w="11906" w:h="16838"/>
       <w:pgMar w:top="567" w:right="567" w:bottom="567" w:left="567" w:header="0" w:footer="0"/>
@@ -3082,7 +3124,7 @@
 
     function buildXlsxBytes() {
       const cards = printCards();
-      const cols = 4;
+      const cols = 3;
       const rowsXml = [];
       let r = 1;
       for (let i = 0; i < cards.length; i += cols) {
