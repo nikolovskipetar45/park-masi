@@ -264,7 +264,7 @@
   <div class="wrap">
     <div class="panel total">
       <span class="label">Вкупно</span>
-      <span class="value" id="total">0 ден.</span>
+      <span class="value" id="total">0 €</span>
     </div>
 
     <div class="panel">
@@ -281,7 +281,7 @@
       </div>
       <div class="guest-pick" id="guestPick"></div>
       <div class="selected" id="selectedLabel">Нема избрани гости.</div>
-      <input type="number" id="amount" min="0" step="100" placeholder="Износ (ден.)" inputmode="numeric" />
+      <input type="number" id="amount" min="0" step="10" placeholder="Износ (€)" inputmode="numeric" />
       <div class="actions">
         <button type="button" class="primary" id="saveBtn" disabled>Зачувај поклон</button>
         <button type="button" class="ghost" id="clearBtn">Исчисти избор</button>
@@ -320,7 +320,7 @@
     };
 
     function formatMoney(n) {
-      return `${Number(n || 0).toLocaleString("mk-MK")} ден.`;
+      return `${Number(n || 0).toLocaleString("mk-MK")} €`;
     }
 
     function guestBadge(guest) {
@@ -428,7 +428,7 @@
         const input = document.createElement("input");
         input.type = "number";
         input.min = "0";
-        input.step = "100";
+        input.step = "10";
         input.value = String(entry.amount);
         input.setAttribute("aria-label", "Износ");
 
