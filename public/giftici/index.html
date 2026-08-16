@@ -227,6 +227,125 @@
     }
     .error { color: var(--danger); }
 
+    .side-tab {
+      position: fixed;
+      top: 50%;
+      right: 0;
+      transform: translateY(-50%);
+      z-index: 40;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      border: none;
+      border-radius: 10px 0 0 10px;
+      padding: 16px 10px;
+      background: var(--wall);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.85rem;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      box-shadow: -2px 4px 14px rgba(0,0,0,.18);
+    }
+    .side-tab:hover { background: #2a2a2a; }
+    .side-tab .count {
+      display: inline-block;
+      margin-top: 8px;
+      writing-mode: horizontal-tb;
+      background: #fff;
+      color: #111;
+      border-radius: 999px;
+      min-width: 1.5em;
+      padding: 1px 6px;
+      font-size: 0.78rem;
+      text-align: center;
+    }
+
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 50;
+      padding: 16px;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #fff;
+      border-radius: 12px;
+      width: min(520px, 100%);
+      max-height: min(88vh, 720px);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 40px rgba(0,0,0,.25);
+    }
+    .modal header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 14px 16px;
+      border-bottom: 1px solid #eee;
+    }
+    .modal header h3 {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+    .modal header .close {
+      background: #eee;
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1.2rem;
+      line-height: 1;
+      padding: 0;
+    }
+    .modal .modal-meta {
+      padding: 10px 16px 0;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .modal .modal-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 16px;
+      border-bottom: 1px solid #eee;
+    }
+    .modal .modal-filters input,
+    .modal .modal-filters select {
+      margin: 0;
+      width: auto;
+    }
+    .modal .modal-filters input {
+      flex: 1 1 160px;
+      min-width: 140px;
+    }
+    .modal .missing-list {
+      list-style: none;
+      margin: 0;
+      padding: 8px;
+      overflow: auto;
+      flex: 1;
+    }
+    .modal .missing-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .modal .missing-list li:last-child { border-bottom: none; }
+    .modal .missing-empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 28px 12px;
+    }
+
     @media (max-width: 640px) {
       .wrap { padding: 10px; }
       .panel { padding: 12px; }
@@ -253,6 +372,32 @@
         width: 100%;
       }
       .total .value { font-size: 1.35rem; }
+      .side-tab {
+        top: auto;
+        bottom: 16px;
+        right: 12px;
+        transform: none;
+        writing-mode: horizontal-tb;
+        border-radius: 999px;
+        padding: 12px 16px;
+      }
+      .side-tab .count {
+        margin-top: 0;
+        margin-left: 8px;
+      }
+      .modal {
+        width: 100%;
+        max-height: 92vh;
+      }
+      .modal .modal-filters {
+        flex-direction: column;
+      }
+      .modal .modal-filters input,
+      .modal .modal-filters select {
+        width: 100%;
+        flex: none;
+        font-size: 16px;
+      }
     }
   </style>
 </head>
@@ -269,7 +414,7 @@
 
     <div class="panel">
       <h2>Нов поклон</h2>
-      <p class="hint">Одбери еден гостин, или повеќе за заеднички поклон во пари.</p>
+      <p class="hint">Одбери гостин(и), или само внеси износ за неозначен плик.</p>
       <div class="filters">
         <input type="search" id="search" placeholder="Пребарај гостин..." autocomplete="off" autofocus />
         <select id="ownerFilter" aria-label="Филтер по група">
@@ -283,8 +428,9 @@
       <div class="selected" id="selectedLabel">Нема избрани гости.</div>
       <input type="number" id="amount" min="0" step="10" placeholder="Износ (€)" inputmode="numeric" />
       <div class="actions">
-        <button type="button" class="primary" id="saveBtn" disabled>Зачувај поклон</button>
+        <button type="button" class="primary" id="saveBtn">Зачувај поклон</button>
         <button type="button" class="ghost" id="clearBtn">Исчисти избор</button>
+        <button type="button" class="ghost" id="unmarkedBtn">Необележан плик</button>
       </div>
     </div>
 
@@ -296,6 +442,32 @@
     </div>
   </div>
 
+  <button type="button" class="side-tab" id="missingBtn" aria-haspopup="dialog">
+    Без поклон
+    <span class="count" id="missingCount">0</span>
+  </button>
+
+  <div class="modal-backdrop" id="missingModal" role="dialog" aria-modal="true" aria-labelledby="missingTitle">
+    <div class="modal">
+      <header>
+        <h3 id="missingTitle">Гости без поклон</h3>
+        <button type="button" class="close" id="missingClose" aria-label="Затвори">×</button>
+      </header>
+      <div class="modal-meta" id="missingMeta">0 гости</div>
+      <div class="modal-filters">
+        <input type="search" id="missingSearch" placeholder="Пребарај..." autocomplete="off" />
+        <select id="missingOwnerFilter" aria-label="Филтер по група">
+          <option value="">Сите групи</option>
+          <option value="toni">Тони и Вале</option>
+          <option value="najdan">Најдан и Снеже</option>
+          <option value="ane">Петар и Ане</option>
+        </select>
+      </div>
+      <ul class="missing-list" id="missingList"></ul>
+      <div class="missing-empty" id="missingEmpty" hidden>Сите гости имаат запишан поклон.</div>
+    </div>
+  </div>
+
   <script>
     const searchEl = document.getElementById("search");
     const ownerFilterEl = document.getElementById("ownerFilter");
@@ -304,10 +476,20 @@
     const amountEl = document.getElementById("amount");
     const saveBtn = document.getElementById("saveBtn");
     const clearBtn = document.getElementById("clearBtn");
+    const unmarkedBtn = document.getElementById("unmarkedBtn");
     const listEl = document.getElementById("list");
     const emptyEl = document.getElementById("empty");
     const errorEl = document.getElementById("error");
     const totalEl = document.getElementById("total");
+    const missingBtn = document.getElementById("missingBtn");
+    const missingCountEl = document.getElementById("missingCount");
+    const missingModal = document.getElementById("missingModal");
+    const missingClose = document.getElementById("missingClose");
+    const missingMeta = document.getElementById("missingMeta");
+    const missingSearch = document.getElementById("missingSearch");
+    const missingOwnerFilter = document.getElementById("missingOwnerFilter");
+    const missingList = document.getElementById("missingList");
+    const missingEmpty = document.getElementById("missingEmpty");
 
     let availableGuests = [];
     let entries = [];
@@ -344,13 +526,12 @@
         .filter((g) => selected.has(g.id))
         .map((g) => g.name);
       if (!names.length) {
-        selectedLabelEl.textContent = "Нема избрани гости.";
+        selectedLabelEl.textContent = "Нема избрани гости — ќе се зачува како неозначен плик.";
       } else if (names.length === 1) {
         selectedLabelEl.textContent = `Избран: ${names[0]}`;
       } else {
         selectedLabelEl.textContent = `Заеднички поклон (${names.length}): ${names.join(" · ")}`;
       }
-      saveBtn.disabled = names.length === 0;
     }
 
     function renderGuestPick() {
@@ -397,9 +578,54 @@
       availableGuests = data.availableGuests || [];
       selected = new Set([...selected].filter((id) => availableGuests.some((g) => g.id === id)));
       totalEl.textContent = formatMoney(data.total || 0);
+      missingCountEl.textContent = String(availableGuests.length);
       updateSelectedLabel();
       renderGuestPick();
       renderEntries();
+      if (missingModal.classList.contains("open")) renderMissingList();
+    }
+
+    function renderMissingList() {
+      const q = missingSearch.value.trim().toLowerCase();
+      const ownerQ = missingOwnerFilter.value;
+      const rows = availableGuests.filter((g) => {
+        if (ownerQ && g.owner !== ownerQ) return false;
+        if (!q) return true;
+        return g.name.toLowerCase().includes(q);
+      });
+      missingList.innerHTML = "";
+      missingMeta.textContent = `${rows.length} од ${availableGuests.length} гости`;
+      if (!availableGuests.length) {
+        missingEmpty.hidden = false;
+        missingEmpty.textContent = "Сите гости имаат запишан поклон.";
+        return;
+      }
+      if (!rows.length) {
+        missingEmpty.hidden = false;
+        missingEmpty.textContent = "Нема резултати.";
+        return;
+      }
+      missingEmpty.hidden = true;
+      for (const g of rows) {
+        const li = document.createElement("li");
+        li.appendChild(guestBadge(g));
+        const group = document.createElement("span");
+        group.style.fontSize = "0.78rem";
+        group.style.color = "var(--muted)";
+        group.textContent = OWNER_LABELS[g.owner] || "";
+        li.appendChild(group);
+        missingList.appendChild(li);
+      }
+    }
+
+    function openMissingModal() {
+      missingModal.classList.add("open");
+      renderMissingList();
+      missingSearch.focus();
+    }
+
+    function closeMissingModal() {
+      missingModal.classList.remove("open");
     }
 
     function renderEntries() {
@@ -414,12 +640,24 @@
         const names = document.createElement("div");
         names.className = "names";
         if (entry.guests?.length) appendGuestNames(names, entry.guests);
-        else names.textContent = "—";
+        else {
+          names.textContent = "Необележан плик";
+          names.style.fontStyle = "italic";
+          names.style.color = "var(--muted)";
+          names.style.fontWeight = "600";
+        }
         top.appendChild(names);
         if (entry.guests.length > 1) {
           const badge = document.createElement("span");
           badge.className = "badge";
           badge.textContent = "Заеднички";
+          top.appendChild(badge);
+        } else if (!entry.guests.length) {
+          const badge = document.createElement("span");
+          badge.className = "badge";
+          badge.style.background = "#f3f4f6";
+          badge.style.color = "#374151";
+          badge.textContent = "Без гостин";
           top.appendChild(badge);
         }
 
@@ -467,12 +705,22 @@
       }
     }
 
-    async function saveGift() {
+    async function saveGift({ requireAmount = false } = {}) {
       const guestIds = [...selected];
       const amount = amountEl.value;
-      if (!guestIds.length) return;
+      if (requireAmount && (amount === "" || Number(amount) <= 0)) {
+        alert("Внеси износ за неозначен плик.");
+        amountEl.focus();
+        return;
+      }
+      if (!guestIds.length && (amount === "" || Number(amount) < 0)) {
+        alert("Внеси износ или одбери гостин.");
+        amountEl.focus();
+        return;
+      }
       try {
         saveBtn.disabled = true;
+        unmarkedBtn.disabled = true;
         const res = await fetch("/api/gifts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -489,6 +737,9 @@
         console.error(err);
         alert(err.message || "Грешка при зачувување.");
         updateSelectedLabel();
+      } finally {
+        saveBtn.disabled = false;
+        unmarkedBtn.disabled = false;
       }
     }
 
@@ -527,14 +778,32 @@
 
     searchEl.addEventListener("input", renderGuestPick);
     ownerFilterEl.addEventListener("change", renderGuestPick);
-    saveBtn.addEventListener("click", saveGift);
+    saveBtn.addEventListener("click", () => saveGift());
     clearBtn.addEventListener("click", () => {
       selected = new Set();
       updateSelectedLabel();
       renderGuestPick();
     });
+    unmarkedBtn.addEventListener("click", () => {
+      selected = new Set();
+      updateSelectedLabel();
+      renderGuestPick();
+      saveGift({ requireAmount: true });
+    });
     amountEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter") saveGift();
+    });
+    missingBtn.addEventListener("click", openMissingModal);
+    missingClose.addEventListener("click", closeMissingModal);
+    missingModal.addEventListener("click", (e) => {
+      if (e.target === missingModal) closeMissingModal();
+    });
+    missingSearch.addEventListener("input", renderMissingList);
+    missingOwnerFilter.addEventListener("change", renderMissingList);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && missingModal.classList.contains("open")) {
+        closeMissingModal();
+      }
     });
 
     load();
